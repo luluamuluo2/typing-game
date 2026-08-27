@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>生死时速 - 打字游戏</title>
+    <meta
+      name="description"
+      content="在线打字游戏《生死时速》：用英文打字速度控制警察或小偷，在城市道路上展开追逐。"
+    />
+    <meta name="keywords" content="生死时速,打字游戏,在线打字游戏,英文打字练习" />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <meta name="theme-color" content="#f2c14e" />
+    <link rel="canonical" href="/" />
+
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:site_name" content="生死时速" />
+    <meta property="og:title" content="生死时速 - 打字游戏" />
+    <meta
+      property="og:description"
+      content="生死时速打字游戏：用打字速度控制警察或小偷展开追逐。"
+    />
+    <meta property="og:image" content="/logo.png" />
+    <meta property="og:image:alt" content="生死时速游戏标志" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="生死时速 - 打字游戏" />
+    <meta
+      name="twitter:description"
+      content="生死时速打字游戏：用打字速度控制警察或小偷展开追逐。"
+    />
+    <meta name="twitter:image" content="/logo.png" />
+
+    <script type="application/ld+json" id="structured-data">
+      {
+        "@context": "https://schema.org",
+        "@type": "VideoGame",
+        "name": "生死时速",
+        "alternateName": "生死时速 - 打字游戏",
+        "description": "在线打字游戏《生死时速》：用英文打字速度控制警察或小偷，在城市道路上展开追逐。",
+        "keywords": "生死时速,打字游戏,在线打字游戏,英文打字练习",
+        "genre": ["打字游戏", "教育游戏"],
+        "gamePlatform": "网页浏览器",
+        "playMode": "SinglePlayer",
+        "applicationCategory": "GameApplication",
+        "operatingSystem": "Any",
+        "inLanguage": "zh-CN",
+        "isAccessibleForFree": true
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <section class="screen" id="screen-title">
+        <div class="title-card">
+          <img class="brand-logo" src="/logo.png" alt="生死时速游戏标志" data-i18n-alt="seo.logoAlt" width="128" height="128" />
+          <p class="kicker" data-i18n="title.tribute">网页致敬版</p>
+          <h1 data-i18n="brand.name">生死时速</h1>
+          <p class="tagline" data-i18n="title.tagline">在线英文打字练习 · 打字就是油门</p>
+          <button type="button" class="btn primary" id="btn-single" data-i18n="title.singlePlayer">单人游戏</button>
+          <p class="hint" data-i18n="title.inputHint">请先切到英文输入法</p>
+        </div>
+      </section>
+
+      <section class="screen hidden" id="screen-setup">
+        <div class="setup-panel">
+          <header class="setup-head">
+            <h2 data-i18n="setup.title">选择角色与载具</h2>
+            <button type="button" class="btn ghost" id="btn-back-title" data-i18n="action.back">返回</button>
+          </header>
+
+          <div class="setup-grid">
+            <fieldset class="block setup-role">
+              <legend data-i18n="setup.role">你扮演</legend>
+              <div class="role-picks" id="role-picks">
+                <button type="button" class="pick role on" data-role="police">
+                  <img src="/assets/police-idle.png" alt="" />
+                  <span data-i18n="role.police">警察</span>
+                  <small data-i18n="role.policeGoal">在文章打完前抓住小偷</small>
+                </button>
+                <button type="button" class="pick role" data-role="thief">
+                  <img src="/assets/thief-idle.png" alt="" />
+                  <span data-i18n="role.thief">小偷</span>
+                  <small data-i18n="role.thiefGoal">打完全文且不被抓住</small>
+                </button>
+              </div>
+            </fieldset>
+
+            <fieldset class="block setup-player-vehicle">
+              <legend data-i18n="setup.playerVehicle">你的载具（打够速度才会上车）</legend>
+              <div class="veh-picks" id="player-vehicle"></div>
+            </fieldset>
+
+            <fieldset class="block setup-ai-vehicle">
+              <legend data-i18n="setup.aiVehicle">电脑的载具（开局就坐上去）</legend>
+              <div class="veh-picks" id="ai-vehicle"></div>
+            </fieldset>
+
+            <fieldset class="block articles setup-articles">
+              <legend data-i18n="setup.articles">练习文章</legend>
+              <div class="article-list" id="article-list"></div>
+              <label class="custom-label" for="custom-text" data-i18n="setup.custom">自定义英文</label>
+              <textarea id="custom-text" rows="3" placeholder="粘贴一段英文，大小写和标点都要打对……" data-i18n-placeholder="setup.customPlaceholder"></textarea>
+            </fieldset>
+          </div>
+
+          <div class="setup-foot">
+            <p class="hint" data-i18n="setup.hint">打错会卡住；连续快速击键才会骑车、开车。</p>
+            <button type="button" class="btn primary" id="btn-start" data-i18n="action.start">开始</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="screen hidden" id="screen-play">
+        <div class="play-stage">
+          <canvas id="map-canvas"></canvas>
+          <div class="play-hud">
+            <div class="stat"><span data-i18n="hud.speed">速度</span><b id="hud-cps">0</b><small data-i18n="hud.keysPerSecond">键/秒</small></div>
+            <div class="stat"><span data-i18n="hud.vehicle">载具</span><b id="hud-vehicle" data-i18n="vehicle.walk">步行</b></div>
+            <div class="stat"><span data-i18n="hud.accuracy">准确</span><b id="hud-acc">100%</b></div>
+            <div class="stat"><span data-i18n="hud.time">用时</span><b id="hud-time">0.0</b></div>
+            <button type="button" class="btn ghost mini" id="btn-giveup" data-i18n="action.giveUp">放弃</button>
+          </div>
+        </div>
+        <div class="type-dock">
+          <div class="type-progress"><i id="type-bar"></i></div>
+          <div class="type-line" id="type-line"></div>
+          <p class="type-hint" id="type-hint" data-i18n="play.ready">按下第一个正确的键开始追逐 · Esc 放弃</p>
+        </div>
+      </section>
+
+      <section class="screen hidden" id="screen-result">
+        <div class="result-card">
+          <img class="result-badge" id="result-badge" src="/assets/result-badge-win.webp" alt="胜利徽章" data-i18n-alt="result.badgeWin" />
+          <p class="kicker" id="result-kicker" data-i18n="result.matchOver">对局结束</p>
+          <h2 id="result-title" data-i18n="result.caughtWin">抓住了！</h2>
+          <p class="result-desc" id="result-desc"></p>
+          <div class="result-rank">
+            <img id="result-rank-icon" src="/assets/ranks/rank-bronze.png?v=2" alt="" />
+            <div>
+              <span data-i18n="result.rank">本局段位</span>
+              <b id="result-rank-name">青铜巡警</b>
+              <small id="result-rank-tagline"></small>
+            </div>
+          </div>
+          <ul class="result-stats" id="result-stats"></ul>
+          <div class="result-actions">
+            <button type="button" class="btn primary share-cta" id="btn-poster" data-i18n="share.open">分享</button>
+            <button type="button" class="btn" id="btn-again" data-i18n="action.again">再来一局</button>
+            <button type="button" class="btn ghost" id="btn-to-setup" data-i18n="action.changeSetup">重新选局</button>
+          </div>
+        </div>
+      </section>
+
+      <dialog class="poster-dialog" id="poster-dialog" aria-labelledby="poster-title">
+        <header class="poster-head">
+          <h2 id="poster-title" data-i18n="share.title">分享</h2>
+          <button type="button" class="poster-close" id="btn-poster-close" aria-label="关闭" title="关闭" data-i18n-aria-label="share.close">×</button>
+        </header>
+        <div class="poster-preview">
+          <canvas id="poster-canvas" width="1080" height="1440"></canvas>
+        </div>
+        <p class="poster-status" id="poster-status" aria-live="polite"></p>
+        <footer class="poster-actions">
+          <div class="shareon" id="shareon-links">
+            <a class="whatsapp" aria-label="WhatsApp" title="WhatsApp"></a>
+            <a class="telegram" aria-label="Telegram" title="Telegram"></a>
+            <a class="email" aria-label="Email" title="Email"></a>
+            <a class="copy-url" aria-label="复制链接" title="复制链接" data-i18n-aria-label="share.copyLink"></a>
+          </div>
+          <div class="poster-commands">
+            <button type="button" class="btn primary" id="btn-poster-share" data-i18n="share.system">分享</button>
+            <button type="button" class="btn" id="btn-poster-download" data-i18n="share.download">保存海报</button>
+          </div>
+        </footer>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

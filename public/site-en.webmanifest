@@ -1,0 +1,22 @@
+{
+  "name": "Speed Chase - Fun Typing Games",
+  "short_name": "Speed Chase",
+  "description": "Type English passages to control the police or thief in a fast city pursuit.",
+  "lang": "en",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e0c0a",
+  "theme_color": "#f2c14e",
+  "icons": [
+    {
+      "src": "/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
