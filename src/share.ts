@@ -1,4 +1,5 @@
-import { locale, t, type MessageKey } from "./i18n.ts"
+import { t, type MessageKey } from "./i18n.ts"
+import { loadImage } from "./assets.ts"
 
 export type MatchResult = {
   won: boolean
@@ -20,7 +21,6 @@ export type Rank = {
 }
 
 export const SHARE_DOMAIN = "typingchase.com"
-export const SHARE_URL = `https://${SHARE_DOMAIN}`
 
 const RANKS: Omit<Rank, "name" | "tagline">[] = [
   { id: "bronze", icon: "/assets/ranks/rank-bronze.png?v=2", color: "#c47a45" },
@@ -40,15 +40,6 @@ export function rankFor(result: MatchResult): Rank {
     name: t(`rank.${base.id}` as MessageKey),
     tagline: t(`rank.${base.id}Tagline` as MessageKey),
   }
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error(`Unable to load ${src}`))
-    image.src = src
-  })
 }
 
 function drawCover(ctx: CanvasRenderingContext2D, image: HTMLImageElement, width: number, height: number) {
@@ -74,99 +65,73 @@ function drawContain(
   ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight)
 }
 
-function drawStat(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  label: string,
-  value: string,
-) {
-  ctx.fillStyle = "#f2c14e"
-  ctx.fillRect(x, y + 4, 5, 84)
-  ctx.fillStyle = "rgba(255,246,227,0.55)"
-  ctx.font = '24px "PingFang SC", "Noto Sans SC", sans-serif'
-  ctx.fillText(label, x + 26, y + 28)
-  ctx.fillStyle = "#fff6e3"
-  ctx.font = '800 42px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(value, x + 26, y + 80)
-}
-
 export async function renderPoster(canvas: HTMLCanvasElement, result: MatchResult, rank: Rank) {
   const width = 1080
-  const height = 1440
+  const height = 1920
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("Canvas is unavailable")
 
   const scenePath = result.outcome === "caught" ? "/assets/result-caught-fx.webp" : "/assets/result-escaped-fx.webp"
-  const [scene, icon] = await Promise.all([loadImage(scenePath), loadImage(rank.icon)])
-  ctx.fillStyle = "#0b0a09"
-  ctx.fillRect(0, 0, width, height)
-  drawCover(ctx, scene, width, 700)
+  const [background, scene, icon] = await Promise.all([
+    loadImage("/assets/map.jpg"),
+    loadImage(scenePath),
+    loadImage(rank.icon),
+  ])
 
-  const shade = ctx.createLinearGradient(0, 0, 0, 700)
-  shade.addColorStop(0, "rgba(8,8,8,0.48)")
-  shade.addColorStop(0.62, "rgba(10,9,8,0.66)")
-  shade.addColorStop(1, "rgba(11,10,9,1)")
+  drawCover(ctx, background, width, height)
+  const shade = ctx.createLinearGradient(0, 0, 0, height)
+  shade.addColorStop(0, "rgba(8,8,8,0.46)")
+  shade.addColorStop(0.5, "rgba(8,8,8,0.58)")
+  shade.addColorStop(1, "rgba(8,8,8,0.9)")
   ctx.fillStyle = shade
-  ctx.fillRect(0, 0, width, 700)
-  ctx.fillStyle = "#0b0a09"
-  ctx.fillRect(0, 680, width, height - 680)
+  ctx.fillRect(0, 0, width, height)
 
   ctx.fillStyle = "#f2c14e"
   ctx.fillRect(0, 0, width, 12)
-  ctx.textAlign = "left"
-  ctx.fillStyle = "#fff6e3"
-  ctx.font = '900 38px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(t("brand.name"), 72, 88)
-  ctx.textAlign = "right"
-  ctx.fillStyle = "rgba(255,246,227,0.62)"
-  ctx.font = '24px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(t("share.posterKicker"), width - 72, 84)
-
-  ctx.textAlign = "left"
-  ctx.fillStyle = result.won ? "#f2c14e" : "#fff6e3"
-  ctx.font = '900 80px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(result.outcomeTitle, 72, 202)
-  ctx.fillStyle = "rgba(255,246,227,0.72)"
-  ctx.font = '28px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(result.role, 76, 248)
 
   ctx.shadowColor = "rgba(0,0,0,0.45)"
-  ctx.shadowBlur = 28
-  drawContain(ctx, icon, 310, 270, 460, 460)
+  ctx.shadowBlur = 32
+  drawContain(ctx, scene, 32, 120, width - 64, 790)
   ctx.shadowBlur = 0
 
+  const lowerShade = ctx.createLinearGradient(0, 760, 0, 1440)
+  lowerShade.addColorStop(0, "rgba(8,8,8,0)")
+  lowerShade.addColorStop(0.42, "rgba(8,8,8,0.78)")
+  lowerShade.addColorStop(1, "rgba(8,8,8,0.3)")
+  ctx.fillStyle = lowerShade
+  ctx.fillRect(0, 760, width, 680)
+
+  ctx.shadowColor = "rgba(0,0,0,0.56)"
+  ctx.shadowBlur = 36
+  drawContain(ctx, icon, 285, 760, 510, 480)
+  ctx.shadowBlur = 0
+
+  const labelWidth = 560
+  const labelHeight = 104
+  const labelX = (width - labelWidth) / 2
+  const labelY = 1250
+  ctx.fillStyle = "rgba(8,8,8,0.78)"
+  ctx.fillRect(labelX, labelY, labelWidth, labelHeight)
+  ctx.strokeStyle = rank.color
+  ctx.lineWidth = 3
+  ctx.strokeRect(labelX, labelY, labelWidth, labelHeight)
   ctx.textAlign = "center"
   ctx.fillStyle = rank.color
-  ctx.font = '900 56px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(rank.name, width / 2, 788)
-  ctx.fillStyle = "rgba(255,246,227,0.7)"
-  ctx.font = '27px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(rank.tagline, width / 2, 832)
-
-  ctx.fillStyle = "rgba(242,193,78,0.24)"
-  ctx.fillRect(72, 872, width - 144, 2)
-  ctx.fillRect(72, 1030, width - 144, 2)
-  ctx.fillRect(width / 2, 900, 2, 250)
-
-  ctx.textAlign = "left"
-  drawStat(ctx, 106, 910, t("result.peakSpeed"), `${result.peakCps} ${t("hud.keysPerSecond")}`)
-  drawStat(ctx, 584, 910, t("result.accuracy"), `${Math.round(result.accuracy * 100)}%`)
-  drawStat(ctx, 106, 1060, t("result.elapsed"), `${result.elapsed.toFixed(1)}s`)
-  drawStat(ctx, 584, 1060, t("result.mistakes"), String(result.mistakes))
+  ctx.font = '900 48px "Trebuchet MS", "PingFang SC", sans-serif'
+  ctx.fillText(rank.name, width / 2, labelY + 69)
 
   ctx.textAlign = "center"
   ctx.fillStyle = "#fff6e3"
-  ctx.font = '900 40px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(t("share.challenge"), width / 2, 1252)
+  ctx.font = '900 46px "Trebuchet MS", "PingFang SC", sans-serif'
+  ctx.fillText(t("share.challenge"), width / 2, 1518)
   ctx.fillStyle = "#f2c14e"
-  ctx.font = '800 35px "Trebuchet MS", sans-serif'
-  ctx.fillText(SHARE_DOMAIN, width / 2, 1314)
-  ctx.fillStyle = "rgba(255,246,227,0.42)"
-  ctx.font = '22px "Trebuchet MS", "PingFang SC", sans-serif'
-  ctx.fillText(locale === "zh-CN" ? "在线英文打字追逐游戏" : "ONLINE TYPING PURSUIT", width / 2, 1370)
+  ctx.font = '900 68px "Trebuchet MS", sans-serif'
+  ctx.fillText(SHARE_DOMAIN, width / 2, 1620)
+
+  ctx.fillStyle = "rgba(242,193,78,0.72)"
+  ctx.fillRect(320, 1682, width - 640, 3)
 }
 
 export function posterBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -184,18 +149,9 @@ export function downloadPoster(blob: Blob) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-export async function sharePoster(blob: Blob, result: MatchResult) {
-  const file = new File([blob], "speed-chase-result.png", { type: "image/png" })
-  const shareData: ShareData = {
-    title: `${t("brand.name")} · ${result.outcomeTitle}`,
-    text: t("share.challenge"),
-    url: SHARE_URL,
-    files: [file],
+export async function copyPoster(blob: Blob) {
+  if (!navigator.clipboard || typeof ClipboardItem === "undefined") {
+    throw new Error("Image clipboard is unavailable")
   }
-  if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-    await navigator.share(shareData)
-    return true
-  }
-  downloadPoster(blob)
-  return false
+  await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })])
 }

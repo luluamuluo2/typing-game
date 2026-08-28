@@ -4,8 +4,8 @@ const KEY_SLICE_SECONDS = 0.05
 
 class GameAudio {
   private music = new Audio("/audio/chase-loop.ogg")
-  private catchSound = new Audio("/audio/catch.ogg")
-  private escapeSound = new Audio("/audio/escape.ogg")
+  private catchSound = new Audio("/audio/catch.ogg?v=catch-steel-2")
+  private escapeSound = new Audio("/audio/escape-whoosh.wav?v=escape-whoosh-2")
   private context: AudioContext | null = null
   private keyboard: AudioBuffer | null = null
   private keyboardLoad: Promise<void> | null = null
@@ -37,9 +37,11 @@ class GameAudio {
 
   finishMatch(reason: "caught" | "finished") {
     this.stopMatch()
-    const sound = reason === "caught" ? this.catchSound : this.escapeSound
-    sound.currentTime = 0
-    void sound.play().catch(() => {})
+    if (reason === "caught") {
+      this.playResultSound(this.catchSound)
+      return
+    }
+    this.playResultSound(this.escapeSound)
   }
 
   playKey() {
@@ -87,6 +89,11 @@ class GameAudio {
       sound.pause()
       sound.currentTime = 0
     }
+  }
+
+  private playResultSound(sound: HTMLAudioElement) {
+    sound.currentTime = 0
+    void sound.play().catch(() => {})
   }
 
   private extractKeyClick(buffer: AudioBuffer) {

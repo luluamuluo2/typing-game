@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "typing-game",
+  "compatibility_date": "2026-08-28",
+  "routes": [
+    {
+      "pattern": "typingchase.com",
+      "custom_domain": true
+    }
+  ],
+  "assets": {
+    "directory": "./dist"
+  }
+}

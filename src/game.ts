@@ -1,5 +1,6 @@
 import { pathAt, wrap01, forwardDist, shortestDist, debugSamples } from "./path.ts"
 import { t, type MessageKey } from "./i18n.ts"
+import { loadImage } from "./assets.ts"
 
 export type Role = "police" | "thief"
 export type Vehicle = "walk" | "bike" | "car"
@@ -72,6 +73,11 @@ const ANIMATION_ATLAS: Record<Role, Record<Vehicle, string>> = {
   },
 }
 
+export const GAME_IMAGE_URLS = [
+  "/assets/map.jpg",
+  ...Object.values(ANIMATION_ATLAS).flatMap((vehicles) => Object.values(vehicles)),
+]
+
 const ATLAS_COLUMNS = 4
 const ATLAS_ROWS = 4
 const FACING_DEAD_ZONE = 0.12
@@ -85,15 +91,6 @@ const ANCHOR_Y: Record<Vehicle, number> = { walk: 0.9, bike: 0.94, car: 0.9 }
 const SHADOW_WIDTH: Record<Vehicle, number> = { walk: 0.34, bike: 0.62, car: 0.72 }
 const SHADOW_HEIGHT: Record<Vehicle, number> = { walk: 0.055, bike: 0.06, car: 0.075 }
 const ACTOR_FILTER = "saturate(0.8) contrast(0.9) brightness(0.96)"
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error(src))
-    img.src = src
-  })
-}
 
 export class ChaseGame {
   readonly canvas: HTMLCanvasElement
@@ -168,13 +165,7 @@ export class ChaseGame {
   }
 
   async boot() {
-    const urls = new Set<string>(["/assets/map.jpg"])
-    for (const role of ["police", "thief"] as Role[]) {
-      for (const v of ["walk", "bike", "car"] as Vehicle[]) {
-        urls.add(ANIMATION_ATLAS[role][v])
-      }
-    }
-    const loaded = await Promise.all([...urls].map(async (u) => [u, await loadImage(u)] as const))
+    const loaded = await Promise.all(GAME_IMAGE_URLS.map(async (u) => [u, await loadImage(u)] as const))
     for (const [u, img] of loaded) this.images.set(u, img)
     this.map = this.images.get("/assets/map.jpg")!
     this.resetActors()

@@ -1,22 +1,48 @@
-import { init as initShareon } from "shareon"
-import "shareon/css"
 import "./style.css"
+import { preloadImages } from "./assets.ts"
 import { gameAudio } from "./audio.ts"
 import { ARTICLES, normalizeArticle } from "./articles.ts"
-import { ChaseGame, VEHICLE_OPTIONS, type Role, type Vehicle } from "./game.ts"
+import { ChaseGame, GAME_IMAGE_URLS, VEHICLE_OPTIONS, type Role, type Vehicle } from "./game.ts"
 import { applyDocumentLocale, t } from "./i18n.ts"
 import {
+  copyPoster,
   downloadPoster,
   posterBlob,
   rankFor,
   renderPoster,
-  SHARE_URL,
-  sharePoster,
   type MatchResult,
   type Rank,
 } from "./share.ts"
 
 type Screen = "title" | "setup" | "play" | "result"
+
+type PersonalBest = {
+  fastestTime: number | null
+  peakCps: number
+  accuracy: number
+  fewestMistakes: number
+}
+
+type RecordMetric = keyof PersonalBest
+
+const PERSONAL_BESTS_KEY = "speed-chase.personal-bests.v1"
+const INITIAL_IMAGE_URLS = [
+  ...GAME_IMAGE_URLS,
+  "/logo.png",
+  "/assets/police-idle.png",
+  "/assets/thief-idle.png",
+  ...VEHICLE_OPTIONS.map((option) => option.img),
+  "/assets/result-caught-fx.webp",
+  "/assets/result-escaped-fx.webp",
+  "/assets/result-badge-win.webp",
+  "/assets/result-badge-loss.webp",
+  "/assets/new-record.webp",
+  "/assets/ranks/rank-bronze.png?v=2",
+  "/assets/ranks/rank-silver.png?v=2",
+  "/assets/ranks/rank-gold.png?v=2",
+  "/assets/ranks/rank-diamond.png?v=2",
+  "/assets/ranks/rank-king.png?v=2",
+]
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 
@@ -28,9 +54,10 @@ const screens: Record<Screen, HTMLElement> = {
   play: $("screen-play"),
   result: $("screen-result"),
 }
+const loadingScreen = $("screen-loading")
 
 let role: Role = "police"
-let playerVehicle: Vehicle = "car"
+let playerVehicle: Vehicle = "bike"
 let aiVehicle: Vehicle = "bike"
 let articleId = ARTICLES[1].id
 let game: ChaseGame | null = null
@@ -51,6 +78,36 @@ function show(name: Screen) {
   for (const [k, el] of Object.entries(screens)) {
     el.classList.toggle("hidden", k !== name)
   }
+}
+
+async function prepareApp() {
+  const bar = $("loading-bar")
+  const percent = $("loading-percent")
+  const progress = loadingScreen.querySelector<HTMLElement>("[role='progressbar']")!
+  const retry = $<HTMLButtonElement>("btn-loading-retry")
+  retry.classList.add("hidden")
+  $("loading-status").textContent = t("loading.status")
+
+  const minimumDisplay = new Promise((resolve) => window.setTimeout(resolve, 350))
+  const loading = preloadImages(INITIAL_IMAGE_URLS, (loaded, total) => {
+    const value = total === 0 ? 100 : Math.round((loaded / total) * 100)
+    bar.style.width = `${value}%`
+    percent.textContent = `${value}%`
+    progress.setAttribute("aria-valuenow", String(value))
+  })
+  const [failed] = await Promise.all([loading, minimumDisplay])
+
+  if (failed.length > 0) {
+    $("loading-status").textContent = t("loading.failed")
+    retry.classList.remove("hidden")
+    return
+  }
+
+  loadingScreen.classList.add("is-ready")
+  window.setTimeout(() => {
+    loadingScreen.classList.add("hidden")
+    show("title")
+  }, 220)
 }
 
 function vehicleButtons(root: HTMLElement, selected: Vehicle, onPick: (v: Vehicle) => void) {
@@ -160,6 +217,105 @@ function onResize() {
   game?.resize()
 }
 
+function passageRecordKey(g: ChaseGame) {
+  let hash = 2166136261
+  for (let i = 0; i < g.text.length; i += 1) {
+    hash ^= g.text.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${g.setup.playerRole}:${(hash >>> 0).toString(36)}`
+}
+
+function readPersonalBests(): Record<string, PersonalBest> {
+  try {
+    const value = localStorage.getItem(PERSONAL_BESTS_KEY)
+    return value ? (JSON.parse(value) as Record<string, PersonalBest>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function updatePersonalBest(g: ChaseGame, won: boolean) {
+  const records = readPersonalBests()
+  const key = passageRecordKey(g)
+  const previous = records[key]
+  const current: PersonalBest = {
+    fastestTime: won ? g.elapsed : null,
+    peakCps: g.peakCps,
+    accuracy: g.accuracy,
+    fewestMistakes: g.missCount,
+  }
+
+  if (!previous) {
+    records[key] = current
+    try {
+      localStorage.setItem(PERSONAL_BESTS_KEY, JSON.stringify(records))
+    } catch {
+      // The result page still works when storage is unavailable.
+    }
+    return { best: current, broken: new Set<RecordMetric>() }
+  }
+
+  const best: PersonalBest = { ...previous }
+  const broken = new Set<RecordMetric>()
+  if (current.fastestTime !== null) {
+    if (best.fastestTime === null) {
+      best.fastestTime = current.fastestTime
+    } else if (current.fastestTime < best.fastestTime - 0.05) {
+      best.fastestTime = current.fastestTime
+      broken.add("fastestTime")
+    }
+  }
+  if (current.peakCps > best.peakCps) {
+    best.peakCps = current.peakCps
+    broken.add("peakCps")
+  }
+  if (current.accuracy > best.accuracy + 0.0005) {
+    best.accuracy = current.accuracy
+    broken.add("accuracy")
+  }
+  if (current.fewestMistakes < best.fewestMistakes) {
+    best.fewestMistakes = current.fewestMistakes
+    broken.add("fewestMistakes")
+  }
+
+  records[key] = best
+  try {
+    localStorage.setItem(PERSONAL_BESTS_KEY, JSON.stringify(records))
+  } catch {
+    // The in-memory result can still be displayed for this match.
+  }
+  return { best, broken }
+}
+
+function renderResultStats(g: ChaseGame, won: boolean) {
+  const { best, broken } = updatePersonalBest(g, won)
+  const newIcon = (metric: RecordMetric) =>
+    broken.has(metric)
+      ? `<img class="new-record-icon" src="/assets/new-record.webp" alt="${t("result.newRecordAlt")}" />`
+      : ""
+  const bestLabel = (value: string) => `<small>${t("result.personalBest")} ${value}</small>`
+
+  $("result-stats").innerHTML = `
+    <li class="${broken.has("fastestTime") ? "is-record" : ""}">
+      ${newIcon("fastestTime")}<span>${t("result.elapsed")}</span><b>${g.elapsed.toFixed(1)}s</b>
+      ${bestLabel(best.fastestTime === null ? "--" : `${best.fastestTime.toFixed(1)}s`)}
+    </li>
+    <li class="${broken.has("peakCps") ? "is-record" : ""}">
+      ${newIcon("peakCps")}<span>${t("result.peakSpeed")}</span><b>${g.peakCps} ${t("hud.keysPerSecond")}</b>
+      ${bestLabel(`${best.peakCps} ${t("hud.keysPerSecond")}`)}
+    </li>
+    <li class="${broken.has("accuracy") ? "is-record" : ""}">
+      ${newIcon("accuracy")}<span>${t("result.accuracy")}</span><b>${Math.round(g.accuracy * 100)}%</b>
+      ${bestLabel(`${Math.round(best.accuracy * 100)}%`)}
+    </li>
+    <li class="${broken.has("fewestMistakes") ? "is-record" : ""}">
+      ${newIcon("fewestMistakes")}<span>${t("result.mistakes")}</span><b>${g.missCount}</b>
+      ${bestLabel(String(best.fewestMistakes))}
+    </li>
+  `
+}
+
 function openResult(g: ChaseGame, winner: Role, reason: "caught" | "finished") {
   const youWin = winner === g.setup.playerRole
   screens.result.dataset.outcome = reason
@@ -174,12 +330,7 @@ function openResult(g: ChaseGame, winner: Role, reason: "caught" | "finished") {
     $("result-title").textContent = youWin ? t("result.escapedWin") : t("result.escapedLoss")
     $("result-desc").textContent = t("result.escapedDescription")
   }
-  $("result-stats").innerHTML = `
-    <li><span>${t("result.elapsed")}</span><b>${g.elapsed.toFixed(1)}s</b></li>
-    <li><span>${t("result.peakSpeed")}</span><b>${g.peakCps} ${t("hud.keysPerSecond")}</b></li>
-    <li><span>${t("result.accuracy")}</span><b>${Math.round(g.accuracy * 100)}%</b></li>
-    <li><span>${t("result.mistakes")}</span><b>${g.missCount}</b></li>
-  `
+  renderResultStats(g, youWin)
   lastMatchResult = {
     won: youWin,
     outcomeTitle: $("result-title").textContent ?? "",
@@ -209,19 +360,20 @@ async function openPoster() {
   if (!lastMatchResult || !lastRank) return
   const dialog = $<HTMLDialogElement>("poster-dialog")
   const status = $("poster-status")
-  const share = $<HTMLButtonElement>("btn-poster-share")
+  const copy = $<HTMLButtonElement>("btn-poster-copy")
   const download = $<HTMLButtonElement>("btn-poster-download")
   if (!dialog.open) dialog.showModal()
-  share.disabled = true
+  copy.disabled = true
   download.disabled = true
   status.textContent = t("share.preparing")
   try {
     const canvas = $<HTMLCanvasElement>("poster-canvas")
     await renderPoster(canvas, lastMatchResult, lastRank)
     lastPosterBlob = await posterBlob(canvas)
-    share.disabled = false
+    const canCopyImage = Boolean(navigator.clipboard && typeof ClipboardItem !== "undefined")
+    copy.disabled = !canCopyImage
     download.disabled = false
-    status.textContent = ""
+    status.textContent = canCopyImage ? "" : t("share.copyUnsupported")
   } catch (error) {
     console.error(error)
     status.textContent = t("share.failed")
@@ -236,6 +388,9 @@ function leavePlay() {
 }
 
 $("btn-single").addEventListener("click", () => show("setup"))
+$("btn-loading-retry").addEventListener("click", () => {
+  void prepareApp()
+})
 $("btn-back-title").addEventListener("click", () => show("title"))
 $("btn-start").addEventListener("click", () => {
   void startMatch()
@@ -271,15 +426,14 @@ $("btn-poster-download").addEventListener("click", () => {
   downloadPoster(lastPosterBlob)
   $("poster-status").textContent = t("share.downloaded")
 })
-$("btn-poster-share").addEventListener("click", async () => {
-  if (!lastPosterBlob || !lastMatchResult) return
+$("btn-poster-copy").addEventListener("click", async () => {
+  if (!lastPosterBlob) return
   try {
-    const shared = await sharePoster(lastPosterBlob, lastMatchResult)
-    $("poster-status").textContent = t(shared ? "share.shared" : "share.downloaded")
+    await copyPoster(lastPosterBlob)
+    $("poster-status").textContent = t("share.copied")
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") return
     console.error(error)
-    $("poster-status").textContent = t("share.failed")
+    $("poster-status").textContent = t("share.copyFailed")
   }
 })
 
@@ -318,10 +472,5 @@ vehicleButtons($("player-vehicle"), playerVehicle, (v) => {
 vehicleButtons($("ai-vehicle"), aiVehicle, (v) => {
   aiVehicle = v
 })
-const shareonLinks = $("shareon-links")
-shareonLinks.dataset.url = SHARE_URL
-shareonLinks.dataset.title = t("brand.name")
-shareonLinks.dataset.text = t("share.challenge")
-initShareon()
 renderArticles()
-show("title")
+void prepareApp()

@@ -8,5 +8,6 @@
   https://freesound.org/people/Breviceps/sounds/447909/
 - `catch.ogg`: `jingles_STEEL14.ogg` from "Music Jingles" by Kenney, CC0.
   https://kenney.nl/assets/music-jingles
-- `escape.ogg`: `jingles_NES12.ogg` from "Music Jingles" by Kenney, CC0.
+- `escape.ogg`: previous `jingles_NES12.ogg` from "Music Jingles" by Kenney, CC0; retained as an unused fallback.
   https://kenney.nl/assets/music-jingles
+- `escape-whoosh.wav`: airy escape whoosh candidate prepared for this project.

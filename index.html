@@ -11,7 +11,7 @@
     <meta name="keywords" content="生死时速,打字游戏,在线打字游戏,英文打字练习" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta name="theme-color" content="#f2c14e" />
-    <link rel="canonical" href="/" />
+    <link rel="canonical" href="https://typingchase.com/" />
 
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
@@ -57,7 +57,21 @@
   </head>
   <body>
     <div id="app">
-      <section class="screen" id="screen-title">
+      <section class="screen loading-screen" id="screen-loading" aria-live="polite">
+        <div class="loading-mark" aria-hidden="true">
+          <i></i>
+          <span></span>
+        </div>
+        <h1 data-i18n="brand.name">生死时速</h1>
+        <p id="loading-status" data-i18n="loading.status">正在准备追逐现场</p>
+        <div class="loading-progress" role="progressbar" aria-label="资源加载进度" data-i18n-aria-label="loading.progressLabel" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <i id="loading-bar"></i>
+        </div>
+        <b id="loading-percent">0%</b>
+        <button type="button" class="btn hidden" id="btn-loading-retry" data-i18n="loading.retry">重新加载</button>
+      </section>
+
+      <section class="screen hidden" id="screen-title">
         <div class="title-card">
           <img class="brand-logo" src="/logo.png" alt="生死时速游戏标志" data-i18n-alt="seo.logoAlt" width="128" height="128" />
           <p class="kicker" data-i18n="title.tribute">网页致敬版</p>
@@ -164,20 +178,12 @@
           <button type="button" class="poster-close" id="btn-poster-close" aria-label="关闭" title="关闭" data-i18n-aria-label="share.close">×</button>
         </header>
         <div class="poster-preview">
-          <canvas id="poster-canvas" width="1080" height="1440"></canvas>
+          <canvas id="poster-canvas" width="1080" height="1920"></canvas>
         </div>
         <p class="poster-status" id="poster-status" aria-live="polite"></p>
         <footer class="poster-actions">
-          <div class="shareon" id="shareon-links">
-            <a class="whatsapp" aria-label="WhatsApp" title="WhatsApp"></a>
-            <a class="telegram" aria-label="Telegram" title="Telegram"></a>
-            <a class="email" aria-label="Email" title="Email"></a>
-            <a class="copy-url" aria-label="复制链接" title="复制链接" data-i18n-aria-label="share.copyLink"></a>
-          </div>
-          <div class="poster-commands">
-            <button type="button" class="btn primary" id="btn-poster-share" data-i18n="share.system">分享</button>
-            <button type="button" class="btn" id="btn-poster-download" data-i18n="share.download">保存海报</button>
-          </div>
+          <button type="button" class="btn" id="btn-poster-download" data-i18n="share.download">保存海报</button>
+          <button type="button" class="btn primary" id="btn-poster-copy" data-i18n="share.copyImage">复制图片</button>
         </footer>
       </dialog>
     </div>
