@@ -8,7 +8,8 @@
     "dev:cf": "npm run build && wrangler dev",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && wrangler deploy"
+    "deploy": "npm run build && wrangler deploy",
+    "test": "node --experimental-strip-types --test tests/*.test.ts"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
@@ -16,6 +17,7 @@
     "wrangler": "^4.0.0"
   },
   "dependencies": {
+    "pinyin-pro": "3.29.5",
     "shareon": "^2.8.1"
   }
 }

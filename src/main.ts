@@ -1,9 +1,10 @@
 import "./style.css"
 import { preloadImages } from "./assets.ts"
 import { gameAudio } from "./audio.ts"
-import { ARTICLES, normalizeArticle } from "./articles.ts"
+import { ARTICLES } from "./articles.ts"
 import { ChaseGame, GAME_IMAGE_URLS, VEHICLE_OPTIONS, type Role, type Vehicle } from "./game.ts"
 import { applyDocumentLocale, t } from "./i18n.ts"
+import { activeUnitIndex, isCompositionKey, preparePassage, type PracticeMode } from "./practice.ts"
 import {
   copyPoster,
   downloadPoster,
@@ -59,7 +60,15 @@ const loadingScreen = $("screen-loading")
 let role: Role = "police"
 let playerVehicle: Vehicle = "bike"
 let aiVehicle: Vehicle = "bike"
-let articleId = ARTICLES[1].id
+let mode: PracticeMode = "pinyin"
+let articleId = ARTICLES[0].id
+let showPinyin = true
+let composing = false
+let displayedUnit = -2
+const modeDrafts: Record<PracticeMode, { articleId: string; custom: string }> = {
+  pinyin: { articleId: ARTICLES[0].id, custom: "" },
+  english: { articleId: "matches", custom: "" },
+}
 let game: ChaseGame | null = null
 let lastMatchResult: MatchResult | null = null
 let lastRank: Rank | null = null
@@ -70,7 +79,8 @@ let lastSetup: {
   aiVehicle: Vehicle
   articleId: string
   custom: string
-} = { role, playerVehicle, aiVehicle, articleId, custom: "" }
+  mode: PracticeMode
+} = { role, playerVehicle, aiVehicle, articleId, custom: "", mode }
 
 const customText = () => $<HTMLTextAreaElement>("custom-text")
 
@@ -128,7 +138,7 @@ function vehicleButtons(root: HTMLElement, selected: Vehicle, onPick: (v: Vehicl
 function renderArticles() {
   const box = $("article-list")
   box.innerHTML = ""
-  for (const a of ARTICLES) {
+  for (const a of ARTICLES.filter((article) => article.mode === mode)) {
     const btn = document.createElement("button")
     btn.type = "button"
     btn.className = `article${a.id === articleId ? " on" : ""}`
@@ -137,15 +147,69 @@ function renderArticles() {
       articleId = a.id
       customText().value = ""
       renderArticles()
+      renderPracticePreview()
     })
     box.append(btn)
   }
 }
 
-function currentText(): string {
-  const custom = normalizeArticle(customText().value)
-  if (custom.length >= 8) return custom
-  return ARTICLES.find((a) => a.id === articleId)?.text ?? ARTICLES[0].text
+function currentPassage() {
+  const source = articleId === "custom"
+    ? customText().value
+    : ARTICLES.find((article) => article.id === articleId && article.mode === mode)?.text ?? ""
+  return preparePassage(source, mode)
+}
+
+function renderPracticePreview() {
+  const result = currentPassage()
+  const error = $("practice-error")
+  error.textContent = result.ok ? "" : `${t(`practice.error.${result.error}`)}${result.characters ? ` ${result.characters}` : ""}`
+  customText().setAttribute("aria-invalid", String(!result.ok && articleId === "custom"))
+  $("practice-preview").textContent = result.ok ? result.passage.target : ""
+  $("practice-preview-wrap").classList.toggle("hidden", mode !== "pinyin" || !result.ok)
+  $("practice-rules").textContent = t(mode === "pinyin" ? "practice.pinyinRules" : "practice.englishRules")
+  customText().placeholder = t(mode === "pinyin" ? "setup.customPlaceholder" : "setup.englishPlaceholder")
+}
+
+function renderSource(g: ChaseGame) {
+  const passage = g.setup.passage
+  const sourceLine = $("source-line")
+  sourceLine.replaceChildren()
+  for (const unit of passage.units) {
+    const span = document.createElement("span")
+    span.textContent = unit.source
+    sourceLine.append(span)
+  }
+  displayedUnit = -2
+  $("pinyin-guide").classList.toggle("hidden", passage.mode !== "pinyin")
+  updateHintVisibility(g)
+}
+
+function updateHintVisibility(g: ChaseGame) {
+  const button = $("btn-pinyin-hint")
+  button.textContent = t(showPinyin ? "practice.hideHint" : "practice.showHint")
+  button.setAttribute("aria-pressed", String(showPinyin))
+  $("type-line").classList.toggle("hidden", g.setup.passage.mode === "pinyin" && !showPinyin)
+}
+
+function renderSourceProgress(g: ChaseGame) {
+  if (g.setup.passage.mode !== "pinyin") return
+  const passage = g.setup.passage
+  const active = activeUnitIndex(passage, g.typedIndex)
+  const sourceLine = $("source-line")
+  for (const [index, span] of Array.from(sourceLine.children).entries()) {
+    const unit = passage.units[index]
+    span.classList.toggle("done", unit.end <= g.typedIndex)
+    span.classList.toggle("current", index === active)
+    if (index === active) span.setAttribute("aria-current", "true")
+    else span.removeAttribute("aria-current")
+  }
+  if (active !== displayedUnit) {
+    const current = sourceLine.children[active] as HTMLElement | undefined
+    if (current) sourceLine.scrollTop = current.offsetTop - sourceLine.clientHeight / 2 + current.offsetHeight / 2
+    displayedUnit = active
+  }
+  $("typing-progress").textContent = `${g.typedIndex} / ${g.text.length} ${t("practice.keys")}`
 }
 
 function renderTypeLine(g: ChaseGame) {
@@ -175,28 +239,26 @@ function hudStats(g: ChaseGame) {
 function hud(g: ChaseGame) {
   hudStats(g)
   renderTypeLine(g)
+  renderSourceProgress(g)
 }
 
 async function startMatch() {
-  game?.stop()
-  gameAudio.startMatch()
-  const text = currentText()
-  lastSetup = {
-    role,
-    playerVehicle,
-    aiVehicle,
-    articleId,
-    custom: customText().value,
+  const result = currentPassage()
+  renderPracticePreview()
+  if (!result.ok) {
+    customText().focus()
+    return
   }
+  leavePlay()
+  lastSetup = { role, playerVehicle, aiVehicle, articleId, custom: customText().value, mode }
   show("play")
   const canvas = $<HTMLCanvasElement>("map-canvas")
-  const g = new ChaseGame(canvas, {
-    playerRole: role,
-    playerVehicle,
-    aiVehicle,
-    text,
-  })
+  const g = new ChaseGame(canvas, { playerRole: role, playerVehicle, aiVehicle, passage: result.passage })
   game = g
+  renderSource(g)
+  renderTypeLine(g)
+  renderSourceProgress(g)
+  $("type-hint").textContent = t("loading.status")
   g.onChange = () => hud(g)
   g.onTick = () => hudStats(g)
   g.onEnd = (winner, reason) => {
@@ -204,13 +266,24 @@ async function startMatch() {
     hud(g)
     openResult(g, winner, reason)
   }
-  await g.boot()
-  g.startLoop()
-  hud(g)
-  g.resize()
-  $("type-hint").textContent =
-    role === "police" ? t("play.policeHint") : t("play.thiefHint")
-  window.addEventListener("resize", onResize)
+  try {
+    await g.boot()
+    // Escape, Quit, or another match can invalidate an in-flight boot.
+    if (game !== g) return
+    gameAudio.startMatch()
+    g.startLoop()
+    hud(g)
+    g.resize()
+    screens.play.focus({ preventScroll: true })
+    $("type-hint").textContent = t("play.ready")
+    window.addEventListener("resize", onResize)
+  } catch (error) {
+    if (game !== g) return
+    console.error(error)
+    leavePlay()
+    show("setup")
+    $("practice-error").textContent = t("loading.failed")
+  }
 }
 
 function onResize() {
@@ -219,11 +292,14 @@ function onResize() {
 
 function passageRecordKey(g: ChaseGame) {
   let hash = 2166136261
-  for (let i = 0; i < g.text.length; i += 1) {
-    hash ^= g.text.charCodeAt(i)
+  const passage = g.setup.passage
+  // Keep existing English records and isolate Chinese passages that share pinyin.
+  const identity = passage.mode === "pinyin" ? `${passage.source}\0${passage.target}` : g.text
+  for (let i = 0; i < identity.length; i += 1) {
+    hash ^= identity.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
-  return `${g.setup.playerRole}:${(hash >>> 0).toString(36)}`
+  return `${passage.mode === "pinyin" ? "pinyin:" : ""}${g.setup.playerRole}:${(hash >>> 0).toString(36)}`
 }
 
 function readPersonalBests(): Record<string, PersonalBest> {
@@ -384,6 +460,7 @@ function leavePlay() {
   game?.stop()
   gameAudio.stopMatch()
   game = null
+  composing = false
   window.removeEventListener("resize", onResize)
 }
 
@@ -406,6 +483,7 @@ $("btn-again").addEventListener("click", () => {
   playerVehicle = lastSetup.playerVehicle
   aiVehicle = lastSetup.aiVehicle
   articleId = lastSetup.articleId
+  mode = lastSetup.mode
   customText().value = lastSetup.custom
   void startMatch()
 })
@@ -447,23 +525,51 @@ $("role-picks").addEventListener("click", (e) => {
 })
 
 customText().addEventListener("input", () => {
-  if (normalizeArticle(customText().value).length >= 8) {
-    articleId = "custom"
-    for (const el of $("article-list").querySelectorAll(".article")) el.classList.remove("on")
+  articleId = "custom"
+  for (const el of $("article-list").querySelectorAll(".article")) el.classList.remove("on")
+  renderPracticePreview()
+})
+
+$("practice-mode").addEventListener("change", () => {
+  modeDrafts[mode] = { articleId, custom: customText().value }
+  mode = $<HTMLSelectElement>("practice-mode").value as PracticeMode
+  articleId = modeDrafts[mode].articleId
+  customText().value = modeDrafts[mode].custom
+  renderArticles()
+  renderPracticePreview()
+})
+
+$("btn-pinyin-hint").addEventListener("click", () => {
+  showPinyin = !showPinyin
+  if (game) {
+    updateHintVisibility(game)
+    game.resize()
   }
 })
 
+window.addEventListener("compositionstart", () => { composing = true })
+window.addEventListener("compositionend", () => { composing = false })
+
 window.addEventListener("keydown", (e) => {
   if (screens.play.classList.contains("hidden") || !game) return
+  if (composing || isCompositionKey(e)) {
+    $("type-hint").textContent = t("title.inputHint")
+    return
+  }
   if (e.key === "Escape") {
     leavePlay()
     show("setup")
     return
   }
+  if ((e.key === " " || e.key === "Enter") && e.target instanceof HTMLElement && e.target.closest("button")) return
   const previousIndex = game.typedIndex
   const handled = game.handleKey(e)
   if (handled && game.typedIndex > previousIndex) gameAudio.playKey()
-  hud(game)
+  if (handled) {
+    $("type-hint").textContent = game.started
+      ? t(role === "police" ? "play.policeHint" : "play.thiefHint")
+      : t("play.ready")
+  }
 })
 
 vehicleButtons($("player-vehicle"), playerVehicle, (v) => {
@@ -473,4 +579,5 @@ vehicleButtons($("ai-vehicle"), aiVehicle, (v) => {
   aiVehicle = v
 })
 renderArticles()
+renderPracticePreview()
 void prepareApp()

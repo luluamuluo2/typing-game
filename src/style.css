@@ -15,7 +15,7 @@
 
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
-button, textarea { font: inherit; }
+button, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
 .hidden { display: none !important; }
@@ -262,6 +262,23 @@ textarea {
   padding: 8px 10px;
 }
 
+#practice-mode {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  color: var(--paper);
+  background: #211e19;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.practice-rules, .practice-error, .practice-preview { font-size: 12px; line-height: 1.5; }
+.practice-rules { margin: 6px 0; color: #c7bda9; }
+.practice-error { margin: 6px 0; color: #ffb5a6; }
+.practice-error:empty { display: none; }
+.practice-preview summary { cursor: pointer; color: var(--gold); }
+.practice-preview p { overflow-wrap: anywhere; max-height: 70px; overflow-y: auto; margin: 6px 0 0; }
+textarea[aria-invalid="true"] { border-color: #ffb5a6; }
+
 @media (min-width: 701px) {
   #screen-setup { min-height: 100dvh; }
   .setup-head h2 { font-size: 24px; }
@@ -357,6 +374,21 @@ textarea {
 }
 .type-line .cur.blink { animation: caret 1s steps(1) infinite; }
 .type-line .sp { opacity: 0.45; }
+.source-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #c7bda9; }
+.source-heading .btn { margin-left: auto; }
+.source-line {
+  position: relative;
+  max-height: min(130px, 20vh);
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  padding: 6px 3px;
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.8;
+  letter-spacing: 0.08em;
+  color: #bdb5a8;
+}
+.source-line .done { color: #7dff9a; }
+.source-line .current { color: #fff; background: var(--navy); border-radius: 3px; outline: 2px solid var(--gold); }
 .type-hint { margin: 8px 0 0; font-size: 13px; opacity: 0.65; }
 
 @keyframes caret {

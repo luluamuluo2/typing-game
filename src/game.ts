@@ -1,6 +1,7 @@
 import { pathAt, wrap01, forwardDist, shortestDist, debugSamples } from "./path.ts"
 import { t, type MessageKey } from "./i18n.ts"
 import { loadImage } from "./assets.ts"
+import { isCompositionKey, type PracticePassage } from "./practice.ts"
 
 export type Role = "police" | "thief"
 export type Vehicle = "walk" | "bike" | "car"
@@ -9,7 +10,7 @@ export type Setup = {
   playerRole: Role
   playerVehicle: Vehicle
   aiVehicle: Vehicle
-  text: string
+  passage: PracticePassage
 }
 
 export type EndReason = "caught" | "finished"
@@ -134,7 +135,7 @@ export class ChaseGame {
     return this.index
   }
   get text() {
-    return this.setup.text
+    return this.setup.passage.target
   }
   get cps() {
     const cut = this.now - 1000
@@ -203,15 +204,16 @@ export class ChaseGame {
   }
 
   handleKey(e: KeyboardEvent): boolean {
-    if (this.ended) return false
+    if (!this.running || this.ended || isCompositionKey(e) || e.repeat) return false
     if (e.metaKey || e.ctrlKey || e.altKey) return false
     if (e.key === "Escape") return false
     if (e.key.length !== 1) return false
     e.preventDefault()
-    const expected = this.setup.text[this.index]
+    const expected = this.setup.passage.target[this.index]
     const now = performance.now()
     this.now = now
-    if (e.key === expected) {
+    const key = this.setup.passage.mode === "pinyin" ? e.key.toLowerCase() : e.key
+    if (key === expected) {
       if (!this.startedAt) {
         this.startedAt = now
         this.lastTs = now
@@ -221,8 +223,10 @@ export class ChaseGame {
       this.lastCorrectAt = now
       this.recent.push(now)
       if (this.recent.length > 80) this.recent.splice(0, this.recent.length - 80)
+      // A short passage can finish before the next animation frame.
+      this.peak = Math.max(this.peak, this.cps)
       this.onChange()
-      if (this.index >= this.setup.text.length) {
+      if (this.index >= this.setup.passage.target.length) {
         this.finish("finished")
       }
     } else {
