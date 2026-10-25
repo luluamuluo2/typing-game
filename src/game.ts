@@ -37,6 +37,11 @@ const HEAD_ON_TURN_GAP = 0.04
 const TURN_ESCAPE_GAP = 0.06
 const TURN_COOLDOWN_MS = 600
 const THIEF_LEAD = 0.045
+const THIEF_IDLE_MS = 1000
+const THIEF_SLOW_GAP = 0.25
+const THIEF_MAX_GAP = 0.5
+const THIEF_GAP_EPSILON = 1e-12
+const THIEF_RESPONSE_SECONDS = 0.35
 
 const BASE_SPEED: Record<Vehicle, number> = {
   walk: 1 / 24,
@@ -114,6 +119,7 @@ export class ChaseGame {
   private recent: number[] = []
   private peak = 0
   private reverseUntil = 0
+  private thiefWaiting = false
   private running = false
   private ended: { winner: Role; reason: EndReason } | null = null
   private raf = 0
@@ -221,6 +227,8 @@ export class ChaseGame {
       this.index += 1
       this.correct += 1
       this.lastCorrectAt = now
+      // Only a new correct key releases the AI thief's half-lap wait.
+      this.thiefWaiting = false
       this.recent.push(now)
       if (this.recent.length > 80) this.recent.splice(0, this.recent.length - 80)
       // A short passage can finish before the next animation frame.
@@ -267,22 +275,64 @@ export class ChaseGame {
     this.ai = ai
     this.police = player.role === "police" ? player : ai
     this.thief = player.role === "thief" ? player : ai
+    this.thiefWaiting = false
   }
 
   private step(ts: number) {
     this.now = ts
-    const dt = this.lastTs ? Math.min(0.05, (ts - this.lastTs) / 1000) : 0
+    const dt = this.lastTs ? Math.max(0, Math.min(0.05, (ts - this.lastTs) / 1000)) : 0
     this.lastTs = ts
     if (!this.startedAt || this.ended) return
 
     this.updatePlayerSpeed(ts, dt)
     this.peak = Math.max(this.peak, this.cps)
+    const playerAdvance = this.player.speed * dt
+    const policePlayer = this.player.role === "police"
+    const gap = policePlayer ? this.distanceInDirection(this.police.t, this.thief.t, this.police.dir) : 0
+    const aiAdvance = policePlayer
+      ? this.cappedThiefAdvance(ts, dt, gap, playerAdvance)
+      : this.ai.speed * dt
     this.advanceAnimation(this.player, dt)
     this.advanceAnimation(this.ai, dt)
-    this.player.t = wrap01(this.player.t + this.player.dir * this.player.speed * dt)
-    this.ai.t = wrap01(this.ai.t + this.ai.dir * this.ai.speed * dt)
-    this.resolveChase()
+    this.player.t = wrap01(this.player.t + this.player.dir * playerAdvance)
+    this.ai.t = wrap01(this.ai.t + this.ai.dir * aiAdvance)
+    if (policePlayer) {
+      // Use the unwrapped gap so a catch cannot become a lap/behind reversal.
+      // The capped AI never needs the original turn-around escape behavior.
+      if (gap + aiAdvance - playerAdvance <= CATCH) this.finish("caught")
+    } else {
+      this.resolveChase()
+    }
     this.onTick()
+  }
+
+  private cappedThiefAdvance(ts: number, dt: number, gap: number, policeAdvance: number) {
+    if (this.thiefWaiting || dt <= 0) return 0
+    const idle = ts - this.lastCorrectAt >= THIEF_IDLE_MS
+    // Spend only space that really exists, including this frame's police move.
+    // This cap applies during active/slow typing too, not just while idle.
+    const budget = Math.max(0, THIEF_MAX_GAP - gap + policeAdvance)
+    if (budget <= THIEF_GAP_EPSILON) {
+      this.ai.speed = 0
+      // A correct key can precede movement (e.g. the wrong-key penalty).
+      // Keep that release armed until the police can actually move.
+      if (idle) this.thiefWaiting = true
+      return 0
+    }
+
+    const base = BASE_SPEED[this.ai.allowed]
+    const progress = Math.max(0, Math.min(1, (gap - THIEF_SLOW_GAP) / (THIEF_MAX_GAP - THIEF_SLOW_GAP)))
+    // A circular ease-out has a smooth onset and reaches the end in finite
+    // time, unlike a linear remaining-distance taper's asymptotic crawl.
+    const target = idle ? base * Math.sqrt(1 - progress * progress) : base
+    const change = base * dt / THIEF_RESPONSE_SECONDS
+    this.ai.speed += Math.max(-change, Math.min(change, target - this.ai.speed))
+    const advance = Math.min(budget, this.ai.speed * dt)
+    if (advance >= budget) {
+      this.ai.speed = 0
+      this.thiefWaiting = true
+    }
+    return advance
   }
 
   private advanceAnimation(actor: Actor, dt: number) {
