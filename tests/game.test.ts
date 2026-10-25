@@ -420,3 +420,70 @@ test("thief-player mode keeps constant AI movement, catches, and its original be
   sim.advance(50)
   assert.equal(sim.game.over?.reason, "caught")
 })
+
+test("beginner advances per correct key, waits indefinitely and never punishes an error", async () => {
+  const game = await createGame("我爱学习中文！", "pinyin", true, { playerRole: "police", difficulty: "beginner" })
+  const state = game as any
+  assert.equal(game.rounds.length, 2)
+  const thiefStart = state.thief.t
+  game.handleKey(key("w"))
+  const policeAfter = state.police.t
+  assert.ok(policeAfter > 0)
+  state.step(performance.now() + 120000)
+  assert.equal(state.police.t, policeAfter)
+  assert.equal(state.thief.t, thiefStart)
+  assert.equal(game.over, null)
+  game.handleKey(key("z"))
+  assert.equal(game.typedIndex, 1)
+  assert.equal(state.police.t, policeAfter)
+  assert.equal(state.lastErrorAt, 0)
+  assert.equal(game.missCount, 1) // Descriptive accuracy, no movement penalty.
+  for (const letter of game.text.slice(1, game.roundEnd)) game.handleKey(key(letter))
+  assert.equal(game.waitingForNextRound, true)
+  assert.equal(game.typedIndex, "woaixuexi".length)
+  assert.equal(state.police.t, state.thief.t)
+  assert.equal(game.handleKey(key("z")), false)
+  const typed = game.typedIndex
+  game.continueRound()
+  assert.equal(game.roundNumber, 2)
+  assert.equal(game.waitingForNextRound, false)
+  assert.equal(game.typedIndex, typed)
+  for (const letter of game.text.slice(typed)) game.handleKey(key(letter))
+  assert.deepEqual(game.over, { winner: "police", reason: "caught" })
+  assert.equal(game.typedIndex, game.text.length)
+  game.continueRound()
+  assert.equal(game.roundNumber, 2)
+  game.stop()
+})
+
+test("one-character beginner round succeeds and a new game starts fresh", async () => {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const game = await createGame("绿。", "pinyin", true, { playerRole: "police", difficulty: "beginner" })
+    assert.equal(game.roundNumber, 1)
+    assert.equal(game.typedIndex, 0)
+    game.handleKey(key("l"))
+    assert.equal(game.over, null)
+    game.handleKey(key("v"))
+    assert.equal(game.over?.winner, "police")
+    assert.equal(game.waitingForNextRound, false)
+    game.stop()
+  }
+})
+
+test("practice slows AI and avoids error slowdown, other roles/modes remain challenge", async () => {
+  const game = await createGame("我爱学习中文", "pinyin", true, { playerRole: "police", difficulty: "practice" })
+  const state = game as any
+  assert.equal(game.difficulty, "practice")
+  assert.ok(Math.abs(state.ai.speed - (1 / 14) * .35) < 1e-12)
+  game.handleKey(key("w"))
+  state.player.speed = .02
+  game.handleKey(key("z"))
+  assert.equal(state.player.speed, .02)
+  assert.equal(state.lastErrorAt, 0)
+  game.stop()
+  for (const setup of [{ playerRole: "thief" as const }, { playerRole: "police" as const }]) {
+    const other = await createGame("hello", setup.playerRole === "police" ? "english" : "pinyin", true, { ...setup, difficulty: "beginner" })
+    assert.equal(other.difficulty, "challenge")
+    other.stop()
+  }
+})

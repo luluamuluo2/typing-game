@@ -1,4 +1,20 @@
 const zh = {
+  "difficulty.label": "追逐难度（中文警察模式）",
+  "difficulty.beginner": "入门 · 等我慢慢拼",
+  "difficulty.practice": "练习 · 慢速追逐",
+  "difficulty.challenge": "挑战 · 原版速度",
+  "difficulty.beginnerDesc": "每关约 4 个字。小偷等你，按对前进一步；按错只提示，不减速，没有时间限制。",
+  "difficulty.practiceDesc": "小偷降至约三分之一速度，按错不减速；保留半圈等待。",
+  "difficulty.challengeDesc": "原版速度与打错减速规则。",
+  "difficulty.unavailable": "英文和小偷角色保留原版挑战规则；切回中文警察模式可使用此难度。",
+  "difficulty.roundComplete": "抓住了！休息一下，再继续下一关。",
+  "difficulty.next": "继续下一关",
+  "difficulty.round": "关卡",
+  "difficulty.beginnerHint": "慢慢想，按对就前进 · 按错再试，不扣进度 · Esc 返回",
+  "difficulty.retry": "再想想这个字的拼音，不着急。",
+  "difficulty.allDone": "全部小关完成！整句都练习完了。",
+  "difficulty.hintSetting": "拼音提示由你手动开关，不随难度改变。",
+
   "seo.title": "生死时速 - 打字游戏",
   "seo.description": "在线打字游戏《生死时速》：看中文、打拼音，控制警察或小偷，在城市道路上展开追逐。",
   "seo.shortDescription": "生死时速打字游戏：用打字速度控制警察或小偷展开追逐。",
@@ -108,6 +124,22 @@ const zh = {
 } as const
 
 const en: Record<keyof typeof zh, string> = {
+  "difficulty.label": "Chase difficulty (Chinese police mode)",
+  "difficulty.beginner": "Beginner · Wait for me",
+  "difficulty.practice": "Practice · Slow chase",
+  "difficulty.challenge": "Challenge · Original speed",
+  "difficulty.beginnerDesc": "About 4 characters per round. The thief waits; correct keys move you forward. No time limit or wrong-key slowdown.",
+  "difficulty.practiceDesc": "The thief runs at about one-third speed. No wrong-key slowdown; the half-lap limit remains.",
+  "difficulty.challengeDesc": "Original speed and wrong-key slowdown.",
+  "difficulty.unavailable": "English and thief roles keep original challenge rules. Select Chinese and police to use this setting.",
+  "difficulty.roundComplete": "Caught! Take a break, then continue.",
+  "difficulty.next": "Next round",
+  "difficulty.round": "Round",
+  "difficulty.beginnerHint": "Take your time; correct keys move you forward · Mistakes never remove progress · Esc to return",
+  "difficulty.retry": "Try that character again. Take your time.",
+  "difficulty.allDone": "All rounds complete! You practised the whole passage.",
+  "difficulty.hintSetting": "Pinyin hints stay under your control, independent of difficulty.",
+
   "seo.title": "Speed Chase - Fun Typing Games",
   "seo.description": "Play Speed Chase, a fun typing game. Read Chinese and type pinyin to control a police officer or thief in a fast city pursuit.",
   "seo.shortDescription": "Speed Chase is a fun typing game: type to chase or escape on city roads.",

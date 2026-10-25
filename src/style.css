@@ -682,3 +682,12 @@ textarea[aria-invalid="true"] { border-color: #ffb5a6; }
   #screen-result:not(.hidden) .result-badge { animation: none; }
   #screen-result:not(.hidden) .new-record-icon { animation: none; }
 }
+
+/* The current Chinese character stands out without revealing a keyboard answer. */
+.practice-unit.future { opacity: 0.48; }
+.practice-unit.active .practice-source { font-weight: 800; box-shadow: 0 0 0 3px rgba(242,193,78,.18); }
+.round-progress { margin: 5px 0; color: var(--gold); font-size: 14px; }
+.round-complete { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 12px; background: #244538; border-radius: 10px; }
+#difficulty { width: 100%; padding: 10px; margin: 6px 0; }
+#screen-play.beginner-mode .play-hud .stat:first-child,
+#screen-play.beginner-mode .play-hud .stat:last-of-type { display: none; }

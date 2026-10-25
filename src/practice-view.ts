@@ -46,6 +46,7 @@ export function createPinyinGuide(line: HTMLElement, passage: PracticePassage): 
         item.source.classList.toggle("done", unit.end <= typedIndex)
         item.source.classList.toggle("current", index === active)
         item.root.classList.toggle("active", index === active)
+        item.root.classList.toggle("future", index > active && active >= 0)
         if (index === active) item.source.setAttribute("aria-current", "true")
         else item.source.removeAttribute("aria-current")
         for (const [offset, key] of item.keys.entries()) {

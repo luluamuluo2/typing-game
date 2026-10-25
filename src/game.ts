@@ -3,6 +3,8 @@ import { t, type MessageKey } from "./i18n.ts"
 import { loadImage, MAP_IMAGE_URL } from "./assets.ts"
 import { isCompositionKey, type PracticePassage } from "./practice.ts"
 
+import { roundEnds, type Difficulty } from "./difficulty.ts"
+
 export type Role = "police" | "thief"
 export type Vehicle = "walk" | "bike" | "car"
 
@@ -11,6 +13,7 @@ export type Setup = {
   playerVehicle: Vehicle
   aiVehicle: Vehicle
   passage: PracticePassage
+  difficulty?: Difficulty
 }
 
 export type EndReason = "caught" | "finished"
@@ -109,6 +112,10 @@ export class ChaseGame {
   private thief!: Actor
   private player!: Actor
   private ai!: Actor
+  private round = 0
+  private roundPaused = false
+  private roundPausedAt = 0
+  private pauseDuration = 0
   private index = 0
   private correct = 0
   private errors = 0
@@ -138,6 +145,26 @@ export class ChaseGame {
     this.ctx = ctx
   }
 
+  get difficulty(): Difficulty {
+    return this.setup.playerRole === "police" && this.setup.passage.mode === "pinyin"
+      ? this.setup.difficulty ?? "challenge" : "challenge"
+  }
+  get beginner() { return this.difficulty === "beginner" }
+  get rounds() { return this.beginner ? roundEnds(this.setup.passage) : [this.text.length] }
+  get roundNumber() { return this.round + 1 }
+  get waitingForNextRound() { return this.roundPaused }
+  get roundStart() { return this.round === 0 ? 0 : this.rounds[this.round - 1] }
+  get roundEnd() { return this.rounds[this.round] }
+  continueRound() {
+    if (!this.roundPaused || this.ended) return
+    this.pauseDuration += performance.now() - this.roundPausedAt
+    this.round += 1
+    this.roundPaused = false
+    this.lastTs = performance.now()
+    this.recent = []
+    this.resetActors()
+    this.onChange()
+  }
   get typedIndex() {
     return this.index
   }
@@ -154,7 +181,7 @@ export class ChaseGame {
   }
   get elapsed() {
     if (!this.startedAt) return 0
-    return (this.now - this.startedAt) / 1000
+    return Math.max(0, ((this.roundPaused ? this.roundPausedAt : this.now) - this.startedAt - this.pauseDuration) / 1000)
   }
   get vehicleLabel() {
     return t(VEHICLE_LABEL_KEY[this.player.vehicle])
@@ -211,7 +238,7 @@ export class ChaseGame {
   }
 
   handleKey(e: KeyboardEvent): boolean {
-    if (!this.running || this.ended || isCompositionKey(e) || e.repeat) return false
+    if (!this.running || this.ended || this.roundPaused || isCompositionKey(e) || e.repeat) return false
     if (e.metaKey || e.ctrlKey || e.altKey) return false
     if (e.key === "Escape") return false
     if (e.key.length !== 1) return false
@@ -234,15 +261,26 @@ export class ChaseGame {
       if (this.recent.length > 80) this.recent.splice(0, this.recent.length - 80)
       // A short passage can finish before the next animation frame.
       this.peak = Math.max(this.peak, this.cps)
+      if (this.beginner) {
+        const fraction = (this.index - this.roundStart) / (this.roundEnd - this.roundStart)
+        this.police.t = 0.18 * fraction
+        this.police.animationPhase = (this.police.animationPhase + 1) % ATLAS_COLUMNS
+        if (this.index === this.roundEnd && this.index < this.text.length) {
+          this.roundPaused = true
+          this.roundPausedAt = now
+        }
+      }
       this.onChange()
       if (this.index >= this.setup.passage.target.length) {
-        this.finish("finished")
+        this.finish(this.beginner ? "caught" : "finished")
       }
     } else {
       this.errors += 1
-      this.lastErrorAt = now
-      this.player.speed = 0
-      this.player.vehicle = "walk"
+      if (this.difficulty === "challenge") {
+        this.lastErrorAt = now
+        this.player.speed = 0
+        this.player.vehicle = "walk"
+      }
       this.onChange()
     }
     return true
@@ -267,7 +305,7 @@ export class ChaseGame {
       dir: 1,
       vehicle: this.setup.aiVehicle,
       allowed: this.setup.aiVehicle,
-      speed: BASE_SPEED[this.setup.aiVehicle],
+      speed: BASE_SPEED[this.setup.aiVehicle] * (this.difficulty === "practice" ? 0.35 : 1),
       isPlayer: false,
       animationPhase: 0,
       facingRow: 0,
@@ -277,13 +315,22 @@ export class ChaseGame {
     this.police = player.role === "police" ? player : ai
     this.thief = player.role === "thief" ? player : ai
     this.thiefWaiting = false
+    if (this.beginner) {
+      this.thief.t = 0.18
+      this.ai.speed = 0
+      this.ai.vehicle = "walk"
+    }
   }
 
   private step(ts: number) {
     this.now = ts
     const dt = this.lastTs ? Math.max(0, Math.min(0.05, (ts - this.lastTs) / 1000)) : 0
     this.lastTs = ts
-    if (!this.startedAt || this.ended) return
+    if (!this.startedAt || this.ended || this.roundPaused) return
+    if (this.beginner) {
+      this.onTick()
+      return
+    }
 
     this.updatePlayerSpeed(ts, dt)
     this.peak = Math.max(this.peak, this.cps)
@@ -321,7 +368,7 @@ export class ChaseGame {
       return 0
     }
 
-    const base = BASE_SPEED[this.ai.allowed]
+    const base = BASE_SPEED[this.ai.allowed] * (this.difficulty === "practice" ? 0.35 : 1)
     const progress = Math.max(0, Math.min(1, (gap - THIEF_SLOW_GAP) / (THIEF_MAX_GAP - THIEF_SLOW_GAP)))
     // A circular ease-out has a smooth onset and reaches the end in finite
     // time, unlike a linear remaining-distance taper's asymptotic crawl.

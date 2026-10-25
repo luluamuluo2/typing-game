@@ -156,3 +156,16 @@ test("hidden hints reveal partial and completed input, then clear it on replay",
   guide.update(0)
   assert.equal(visible(), "")
 })
+
+test("future characters are subdued but hidden hints never reveal untyped letters", () => {
+  const { guide, line, letters } = fixture("我爱学习")
+  guide.setHintsVisible(false)
+  guide.update(1)
+  assert.equal(line.children[0].classList.contains("active"), true)
+  assert.equal(line.children[1].classList.contains("future"), true)
+  assert.equal(letters()[0].attributes.get("aria-hidden"), "false")
+  assert.equal(letters()[1].attributes.get("aria-hidden"), "true")
+  guide.setHintsVisible(true)
+  guide.setHintsVisible(false)
+  assert.equal(letters()[1].attributes.get("aria-hidden"), "true")
+})

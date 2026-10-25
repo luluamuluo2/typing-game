@@ -123,6 +123,13 @@
                 <option value="pinyin" data-i18n="practice.pinyin">中文 → 拼音</option>
                 <option value="english" data-i18n="practice.english">英文原文</option>
               </select>
+              <label class="custom-label" for="difficulty" data-i18n="difficulty.label">追逐难度</label>
+              <select id="difficulty">
+                <option value="beginner" data-i18n="difficulty.beginner">入门 · 等我慢慢拼</option>
+                <option value="practice" data-i18n="difficulty.practice">练习 · 慢速追逐</option>
+                <option value="challenge" data-i18n="difficulty.challenge">挑战 · 原版速度</option>
+              </select>
+              <p class="practice-rules" id="difficulty-description"></p>
               <div class="article-list" id="article-list"></div>
               <label class="custom-label" for="custom-text" data-i18n="setup.custom">自定义内容</label>
               <textarea id="custom-text" rows="3" placeholder="粘贴中文句子，例如：你好，世界！" aria-describedby="practice-rules practice-error" data-i18n-placeholder="setup.customPlaceholder"></textarea>
@@ -136,7 +143,7 @@
           </div>
 
           <div class="setup-foot">
-            <p class="hint" data-i18n="setup.hint">打错会卡住；连续快速击键才会骑车、开车。</p>
+            <p class="hint" id="setup-hint" data-i18n="setup.hint">打错会卡住；连续快速击键才会骑车、开车。</p>
             <button type="button" class="btn primary" id="btn-start" data-i18n="action.start">开始</button>
           </div>
         </div>
@@ -161,7 +168,12 @@
               <span id="typing-progress"></span>
               <button type="button" class="btn ghost mini" id="btn-pinyin-hint" aria-controls="source-line" aria-pressed="true" data-i18n="practice.hideHint">隐藏拼音提示</button>
             </div>
+            <p id="round-progress" class="round-progress hidden"></p>
             <div class="source-line" id="source-line"></div>
+            <div id="round-complete" class="round-complete hidden" role="status">
+              <strong data-i18n="difficulty.roundComplete">抓住了！休息一下，再继续下一关。</strong>
+              <button type="button" class="btn primary" id="btn-next-round" data-i18n="difficulty.next">继续下一关</button>
+            </div>
           </div>
           <div class="type-line" id="type-line"></div>
           <p class="type-hint" id="type-hint" data-i18n="play.ready">按下第一个正确的键开始追逐 · Esc 放弃</p>
