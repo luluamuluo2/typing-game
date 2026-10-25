@@ -414,7 +414,7 @@ textarea[aria-invalid="true"] { border-color: #ffb5a6; }
 .pinyin-key { display: inline-block; min-width: 1ch; }
 .practice-syllable .cur { padding: 0; }
 /* Keep the same wrapping and scroll position when the user hides the hints. */
-.pinyin-hidden .practice-syllable { visibility: hidden; }
+.pinyin-hidden .pinyin-key:not(.done) { visibility: hidden; }
 .type-hint { margin: 8px 0 0; font-size: 13px; opacity: 0.65; }
 
 @keyframes caret {

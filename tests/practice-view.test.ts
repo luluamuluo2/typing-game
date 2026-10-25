@@ -80,18 +80,18 @@ test("punctuation, whitespace, contextual polyphones and v keep their original k
   assert.equal(letters()[7].classList.contains("cur"), true)
 })
 
-test("repeated hint toggles hide every syllable without losing progress or rebuilding units", () => {
-  const { guide, line, syllables, letters } = fixture("你好，世界！")
+test("repeated hint toggles hide only untyped letters without losing progress or rebuilding units", () => {
+  const { guide, line, letters } = fixture("你好，世界！")
   const originalItems = [...line.children]
   guide.update(3)
   for (let toggle = 0; toggle < 3; toggle += 1) {
     guide.setHintsVisible(false)
     assert.equal(line.classList.contains("pinyin-hidden"), true)
-    assert.ok(syllables().every((item) => item.attributes.get("aria-hidden") === "true"))
+    assert.ok(letters().every((item) => item.attributes.get("aria-hidden") === String(!item.classList.contains("done"))))
     guide.update(4)
     guide.setHintsVisible(true)
     assert.equal(line.classList.contains("pinyin-hidden"), false)
-    assert.ok(syllables().every((item) => item.attributes.get("aria-hidden") === "false"))
+    assert.ok(letters().every((item) => item.attributes.get("aria-hidden") === "false"))
     assert.equal(letters()[4].classList.contains("cur"), true)
     assert.deepEqual(line.children, originalItems)
   }
@@ -136,5 +136,23 @@ test("layout preserves complete syllables and hint hiding does not collapse thei
   const css = readFileSync(new URL("../src/style.css", import.meta.url), "utf8")
   assert.match(css, /\.source-line\s*\{[^}]*display: flex;[^}]*flex-wrap: wrap;[^}]*gap: 8px 12px;/)
   assert.match(css, /\.practice-unit\s*\{[^}]*flex: 0 0 auto;[^}]*flex-direction: column;[^}]*white-space: nowrap;/)
-  assert.match(css, /\.pinyin-hidden \.practice-syllable\s*\{\s*visibility: hidden;/)
+  assert.match(css, /\.pinyin-hidden \.pinyin-key:not\(\.done\)\s*\{\s*visibility: hidden;/)
+})
+
+
+test("hidden hints reveal partial and completed input, then clear it on replay", () => {
+  const { passage, guide, letters } = fixture("你好")
+  guide.setHintsVisible(false)
+  const visible = () => letters().filter((key) => key.attributes.get("aria-hidden") === "false").map((key) => key.textContent).join("")
+  assert.equal(visible(), "")
+  guide.update(1)
+  assert.equal(visible(), "n")
+  guide.update(2)
+  assert.equal(visible(), "ni")
+  guide.update(3)
+  assert.equal(visible(), "nih")
+  guide.update(passage.target.length, true)
+  assert.equal(visible(), "nihao")
+  guide.update(0)
+  assert.equal(visible(), "")
 })

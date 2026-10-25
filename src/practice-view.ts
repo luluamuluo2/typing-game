@@ -29,6 +29,15 @@ export function createPinyinGuide(line: HTMLElement, passage: PracticePassage): 
     return { root, source, syllable, keys }
   })
 
+  let hintsVisible = true
+  const updateVisibility = () => {
+    for (const item of items) {
+      for (const key of item.keys) {
+        key.setAttribute("aria-hidden", String(!hintsVisible && !key.classList.contains("done")))
+      }
+    }
+  }
+
   return {
     update(typedIndex, finished = false) {
       const active = activeUnitIndex(passage, typedIndex)
@@ -47,6 +56,7 @@ export function createPinyinGuide(line: HTMLElement, passage: PracticePassage): 
           key.classList.toggle("blink", position === typedIndex && !finished)
         }
       }
+      updateVisibility()
       // Scroll the paired rows together, never through the middle of a syllable.
       const current = items[active]?.root
       if (current) {
@@ -58,7 +68,8 @@ export function createPinyinGuide(line: HTMLElement, passage: PracticePassage): 
     },
     setHintsVisible(visible) {
       line.classList.toggle("pinyin-hidden", !visible)
-      for (const item of items) item.syllable.setAttribute("aria-hidden", String(!visible))
+      hintsVisible = visible
+      updateVisibility()
     },
   }
 }
