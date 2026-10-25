@@ -1,6 +1,9 @@
 import { pathAt, wrap01, forwardDist, shortestDist, debugSamples } from "./path.ts"
 import { t, type MessageKey } from "./i18n.ts"
-import { loadImage } from "./assets.ts"
+import { loadImage, MAP_IMAGE_URL } from "./assets.ts"
+import { isCompositionKey, type PracticePassage } from "./practice.ts"
+
+import { roundEnds, type Difficulty } from "./difficulty.ts"
 
 export type Role = "police" | "thief"
 export type Vehicle = "walk" | "bike" | "car"
@@ -9,7 +12,8 @@ export type Setup = {
   playerRole: Role
   playerVehicle: Vehicle
   aiVehicle: Vehicle
-  text: string
+  passage: PracticePassage
+  difficulty?: Difficulty
 }
 
 export type EndReason = "caught" | "finished"
@@ -36,6 +40,11 @@ const HEAD_ON_TURN_GAP = 0.04
 const TURN_ESCAPE_GAP = 0.06
 const TURN_COOLDOWN_MS = 600
 const THIEF_LEAD = 0.045
+const THIEF_IDLE_MS = 1000
+const THIEF_SLOW_GAP = 0.25
+const THIEF_MAX_GAP = 0.5
+const THIEF_GAP_EPSILON = 1e-12
+const THIEF_RESPONSE_SECONDS = 0.35
 
 const BASE_SPEED: Record<Vehicle, number> = {
   walk: 1 / 24,
@@ -74,7 +83,7 @@ const ANIMATION_ATLAS: Record<Role, Record<Vehicle, string>> = {
 }
 
 export const GAME_IMAGE_URLS = [
-  "/assets/map.jpg",
+  MAP_IMAGE_URL,
   ...Object.values(ANIMATION_ATLAS).flatMap((vehicles) => Object.values(vehicles)),
 ]
 
@@ -84,8 +93,9 @@ const FACING_DEAD_ZONE = 0.12
 const ANIMATION_FPS: Record<Vehicle, number> = { walk: 9, bike: 10, car: 8 }
 const IDLE_FRAME: Record<Vehicle, number> = { walk: 1, bike: 0, car: 0 }
 
-// Sprite height in map pixels. Keeping this tied to the map scale makes actors
-// feel like part of the street instead of UI elements laid over the canvas.
+// Preserve the original scene proportions independently of asset resolution.
+const LOGICAL_MAP_WIDTH = 1280
+// Sprite height in logical map pixels, not source-image pixels.
 const DRAW_MAP_H: Record<Vehicle, number> = { walk: 64, bike: 78, car: 68 }
 const ANCHOR_Y: Record<Vehicle, number> = { walk: 0.9, bike: 0.94, car: 0.9 }
 const SHADOW_WIDTH: Record<Vehicle, number> = { walk: 0.34, bike: 0.62, car: 0.72 }
@@ -102,6 +112,10 @@ export class ChaseGame {
   private thief!: Actor
   private player!: Actor
   private ai!: Actor
+  private round = 0
+  private roundPaused = false
+  private roundPausedAt = 0
+  private pauseDuration = 0
   private index = 0
   private correct = 0
   private errors = 0
@@ -113,6 +127,7 @@ export class ChaseGame {
   private recent: number[] = []
   private peak = 0
   private reverseUntil = 0
+  private thiefWaiting = false
   private running = false
   private ended: { winner: Role; reason: EndReason } | null = null
   private raf = 0
@@ -130,11 +145,31 @@ export class ChaseGame {
     this.ctx = ctx
   }
 
+  get difficulty(): Difficulty {
+    return this.setup.playerRole === "police" && this.setup.passage.mode === "pinyin"
+      ? this.setup.difficulty ?? "challenge" : "challenge"
+  }
+  get beginner() { return this.difficulty === "beginner" }
+  get rounds() { return this.beginner ? roundEnds(this.setup.passage) : [this.text.length] }
+  get roundNumber() { return this.round + 1 }
+  get waitingForNextRound() { return this.roundPaused }
+  get roundStart() { return this.round === 0 ? 0 : this.rounds[this.round - 1] }
+  get roundEnd() { return this.rounds[this.round] }
+  continueRound() {
+    if (!this.roundPaused || this.ended) return
+    this.pauseDuration += performance.now() - this.roundPausedAt
+    this.round += 1
+    this.roundPaused = false
+    this.lastTs = performance.now()
+    this.recent = []
+    this.resetActors()
+    this.onChange()
+  }
   get typedIndex() {
     return this.index
   }
   get text() {
-    return this.setup.text
+    return this.setup.passage.target
   }
   get cps() {
     const cut = this.now - 1000
@@ -146,7 +181,7 @@ export class ChaseGame {
   }
   get elapsed() {
     if (!this.startedAt) return 0
-    return (this.now - this.startedAt) / 1000
+    return Math.max(0, ((this.roundPaused ? this.roundPausedAt : this.now) - this.startedAt - this.pauseDuration) / 1000)
   }
   get vehicleLabel() {
     return t(VEHICLE_LABEL_KEY[this.player.vehicle])
@@ -167,7 +202,7 @@ export class ChaseGame {
   async boot() {
     const loaded = await Promise.all(GAME_IMAGE_URLS.map(async (u) => [u, await loadImage(u)] as const))
     for (const [u, img] of loaded) this.images.set(u, img)
-    this.map = this.images.get("/assets/map.jpg")!
+    this.map = this.images.get(MAP_IMAGE_URL)!
     this.resetActors()
     this.resize()
     this.draw(performance.now())
@@ -203,15 +238,16 @@ export class ChaseGame {
   }
 
   handleKey(e: KeyboardEvent): boolean {
-    if (this.ended) return false
+    if (!this.running || this.ended || this.roundPaused || isCompositionKey(e) || e.repeat) return false
     if (e.metaKey || e.ctrlKey || e.altKey) return false
     if (e.key === "Escape") return false
     if (e.key.length !== 1) return false
     e.preventDefault()
-    const expected = this.setup.text[this.index]
+    const expected = this.setup.passage.target[this.index]
     const now = performance.now()
     this.now = now
-    if (e.key === expected) {
+    const key = this.setup.passage.mode === "pinyin" ? e.key.toLowerCase() : e.key
+    if (key === expected) {
       if (!this.startedAt) {
         this.startedAt = now
         this.lastTs = now
@@ -219,17 +255,32 @@ export class ChaseGame {
       this.index += 1
       this.correct += 1
       this.lastCorrectAt = now
+      // Only a new correct key releases the AI thief's half-lap wait.
+      this.thiefWaiting = false
       this.recent.push(now)
       if (this.recent.length > 80) this.recent.splice(0, this.recent.length - 80)
+      // A short passage can finish before the next animation frame.
+      this.peak = Math.max(this.peak, this.cps)
+      if (this.beginner) {
+        const fraction = (this.index - this.roundStart) / (this.roundEnd - this.roundStart)
+        this.police.t = 0.18 * fraction
+        this.police.animationPhase = (this.police.animationPhase + 1) % ATLAS_COLUMNS
+        if (this.index === this.roundEnd && this.index < this.text.length) {
+          this.roundPaused = true
+          this.roundPausedAt = now
+        }
+      }
       this.onChange()
-      if (this.index >= this.setup.text.length) {
-        this.finish("finished")
+      if (this.index >= this.setup.passage.target.length) {
+        this.finish(this.beginner ? "caught" : "finished")
       }
     } else {
       this.errors += 1
-      this.lastErrorAt = now
-      this.player.speed = 0
-      this.player.vehicle = "walk"
+      if (this.difficulty === "challenge") {
+        this.lastErrorAt = now
+        this.player.speed = 0
+        this.player.vehicle = "walk"
+      }
       this.onChange()
     }
     return true
@@ -254,7 +305,7 @@ export class ChaseGame {
       dir: 1,
       vehicle: this.setup.aiVehicle,
       allowed: this.setup.aiVehicle,
-      speed: BASE_SPEED[this.setup.aiVehicle],
+      speed: BASE_SPEED[this.setup.aiVehicle] * (this.difficulty === "practice" ? 0.35 : 1),
       isPlayer: false,
       animationPhase: 0,
       facingRow: 0,
@@ -263,22 +314,73 @@ export class ChaseGame {
     this.ai = ai
     this.police = player.role === "police" ? player : ai
     this.thief = player.role === "thief" ? player : ai
+    this.thiefWaiting = false
+    if (this.beginner) {
+      this.thief.t = 0.18
+      this.ai.speed = 0
+      this.ai.vehicle = "walk"
+    }
   }
 
   private step(ts: number) {
     this.now = ts
-    const dt = this.lastTs ? Math.min(0.05, (ts - this.lastTs) / 1000) : 0
+    const dt = this.lastTs ? Math.max(0, Math.min(0.05, (ts - this.lastTs) / 1000)) : 0
     this.lastTs = ts
-    if (!this.startedAt || this.ended) return
+    if (!this.startedAt || this.ended || this.roundPaused) return
+    if (this.beginner) {
+      this.onTick()
+      return
+    }
 
     this.updatePlayerSpeed(ts, dt)
     this.peak = Math.max(this.peak, this.cps)
+    const playerAdvance = this.player.speed * dt
+    const policePlayer = this.player.role === "police"
+    const gap = policePlayer ? this.distanceInDirection(this.police.t, this.thief.t, this.police.dir) : 0
+    const aiAdvance = policePlayer
+      ? this.cappedThiefAdvance(ts, dt, gap, playerAdvance)
+      : this.ai.speed * dt
     this.advanceAnimation(this.player, dt)
     this.advanceAnimation(this.ai, dt)
-    this.player.t = wrap01(this.player.t + this.player.dir * this.player.speed * dt)
-    this.ai.t = wrap01(this.ai.t + this.ai.dir * this.ai.speed * dt)
-    this.resolveChase()
+    this.player.t = wrap01(this.player.t + this.player.dir * playerAdvance)
+    this.ai.t = wrap01(this.ai.t + this.ai.dir * aiAdvance)
+    if (policePlayer) {
+      // Use the unwrapped gap so a catch cannot become a lap/behind reversal.
+      // The capped AI never needs the original turn-around escape behavior.
+      if (gap + aiAdvance - playerAdvance <= CATCH) this.finish("caught")
+    } else {
+      this.resolveChase()
+    }
     this.onTick()
+  }
+
+  private cappedThiefAdvance(ts: number, dt: number, gap: number, policeAdvance: number) {
+    if (this.thiefWaiting || dt <= 0) return 0
+    const idle = ts - this.lastCorrectAt >= THIEF_IDLE_MS
+    // Spend only space that really exists, including this frame's police move.
+    // This cap applies during active/slow typing too, not just while idle.
+    const budget = Math.max(0, THIEF_MAX_GAP - gap + policeAdvance)
+    if (budget <= THIEF_GAP_EPSILON) {
+      this.ai.speed = 0
+      // A correct key can precede movement (e.g. the wrong-key penalty).
+      // Keep that release armed until the police can actually move.
+      if (idle) this.thiefWaiting = true
+      return 0
+    }
+
+    const base = BASE_SPEED[this.ai.allowed] * (this.difficulty === "practice" ? 0.35 : 1)
+    const progress = Math.max(0, Math.min(1, (gap - THIEF_SLOW_GAP) / (THIEF_MAX_GAP - THIEF_SLOW_GAP)))
+    // A circular ease-out has a smooth onset and reaches the end in finite
+    // time, unlike a linear remaining-distance taper's asymptotic crawl.
+    const target = idle ? base * Math.sqrt(1 - progress * progress) : base
+    const change = base * dt / THIEF_RESPONSE_SECONDS
+    this.ai.speed += Math.max(-change, Math.min(change, target - this.ai.speed))
+    const advance = Math.min(budget, this.ai.speed * dt)
+    if (advance >= budget) {
+      this.ai.speed = 0
+      this.thiefWaiting = true
+    }
+    return advance
   }
 
   private advanceAnimation(actor: Actor, dt: number) {
@@ -365,12 +467,12 @@ export class ChaseGame {
   private refreshMapRect(vw: number, vh: number) {
     const mw = this.map.naturalWidth
     const mh = this.map.naturalHeight
-    const scale = Math.min(vw / mw, vh / mh)
-    const w = mw * scale
-    const h = mh * scale
+    const imageScale = Math.min(vw / mw, vh / mh)
+    const w = mw * imageScale
+    const h = mh * imageScale
     const x = (vw - w) / 2
     const y = (vh - h) / 2
-    this.mapRect = { x, y, w, h, scale }
+    this.mapRect = { x, y, w, h, scale: w / LOGICAL_MAP_WIDTH }
     const parent = this.canvas.parentElement
     if (parent) {
       parent.style.setProperty("--map-left", `${x}px`)

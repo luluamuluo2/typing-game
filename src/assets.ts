@@ -1,3 +1,5 @@
+export const MAP_IMAGE_URL = "/assets/map-clear.png"
+
 const imageCache = new Map<string, Promise<HTMLImageElement>>()
 
 export function loadImage(src: string): Promise<HTMLImageElement> {

@@ -6,9 +6,9 @@
     <title>生死时速 - 打字游戏</title>
     <meta
       name="description"
-      content="在线打字游戏《生死时速》：用英文打字速度控制警察或小偷，在城市道路上展开追逐。"
+      content="在线打字游戏《生死时速》：看中文、打拼音，控制警察或小偷，在城市道路上展开追逐。"
     />
-    <meta name="keywords" content="生死时速,打字游戏,在线打字游戏,英文打字练习" />
+    <meta name="keywords" content="生死时速,打字游戏,在线打字游戏,中文拼音,英文打字练习" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta name="theme-color" content="#f2c14e" />
     <link rel="canonical" href="https://typingchase.com/" />
@@ -43,8 +43,8 @@
         "@type": "VideoGame",
         "name": "生死时速",
         "alternateName": "生死时速 - 打字游戏",
-        "description": "在线打字游戏《生死时速》：用英文打字速度控制警察或小偷，在城市道路上展开追逐。",
-        "keywords": "生死时速,打字游戏,在线打字游戏,英文打字练习",
+        "description": "在线打字游戏《生死时速》：看中文、打拼音，控制警察或小偷，在城市道路上展开追逐。",
+        "keywords": "生死时速,打字游戏,在线打字游戏,中文拼音,英文打字练习",
         "genre": ["打字游戏", "教育游戏"],
         "gamePlatform": "网页浏览器",
         "playMode": "SinglePlayer",
@@ -76,7 +76,7 @@
           <img class="brand-logo" src="/logo.png" alt="生死时速游戏标志" data-i18n-alt="seo.logoAlt" width="128" height="128" />
           <p class="kicker" data-i18n="title.tribute">网页致敬版</p>
           <h1 data-i18n="brand.name">生死时速</h1>
-          <p class="tagline" data-i18n="title.tagline">在线英文打字练习 · 打字就是油门</p>
+          <p class="tagline" data-i18n="title.tagline">看中文 · 打拼音 · 打字就是油门</p>
           <button type="button" class="btn primary" id="btn-single" data-i18n="title.singlePlayer">单人游戏</button>
           <p class="hint" data-i18n="title.inputHint">请先切到英文输入法</p>
         </div>
@@ -118,20 +118,38 @@
 
             <fieldset class="block articles setup-articles">
               <legend data-i18n="setup.articles">练习文章</legend>
+              <label class="custom-label" for="practice-mode" data-i18n="practice.mode">练习模式</label>
+              <select id="practice-mode">
+                <option value="pinyin" data-i18n="practice.pinyin">中文 → 拼音</option>
+                <option value="english" data-i18n="practice.english">英文原文</option>
+              </select>
+              <label class="custom-label" for="difficulty" data-i18n="difficulty.label">追逐难度</label>
+              <select id="difficulty">
+                <option value="beginner" data-i18n="difficulty.beginner">入门 · 等我慢慢拼</option>
+                <option value="practice" data-i18n="difficulty.practice">练习 · 慢速追逐</option>
+                <option value="challenge" data-i18n="difficulty.challenge">挑战 · 原版速度</option>
+              </select>
+              <p class="practice-rules" id="difficulty-description"></p>
               <div class="article-list" id="article-list"></div>
-              <label class="custom-label" for="custom-text" data-i18n="setup.custom">自定义英文</label>
-              <textarea id="custom-text" rows="3" placeholder="粘贴一段英文，大小写和标点都要打对……" data-i18n-placeholder="setup.customPlaceholder"></textarea>
+              <label class="custom-label" for="custom-text" data-i18n="setup.custom">自定义内容</label>
+              <textarea id="custom-text" rows="3" placeholder="粘贴中文句子，例如：你好，世界！" aria-describedby="practice-rules practice-error" data-i18n-placeholder="setup.customPlaceholder"></textarea>
+              <p class="practice-rules" id="practice-rules"></p>
+              <p class="practice-error" id="practice-error" role="alert"></p>
+              <details class="practice-preview" id="practice-preview-wrap">
+                <summary data-i18n="practice.preview">拼音预览（分字显示，连续输入）</summary>
+                <p id="practice-preview"></p>
+              </details>
             </fieldset>
           </div>
 
           <div class="setup-foot">
-            <p class="hint" data-i18n="setup.hint">打错会卡住；连续快速击键才会骑车、开车。</p>
+            <p class="hint" id="setup-hint" data-i18n="setup.hint">打错会卡住；连续快速击键才会骑车、开车。</p>
             <button type="button" class="btn primary" id="btn-start" data-i18n="action.start">开始</button>
           </div>
         </div>
       </section>
 
-      <section class="screen hidden" id="screen-play">
+      <section class="screen hidden" id="screen-play" tabindex="-1">
         <div class="play-stage">
           <canvas id="map-canvas"></canvas>
           <div class="play-hud">
@@ -144,6 +162,19 @@
         </div>
         <div class="type-dock">
           <div class="type-progress"><i id="type-bar"></i></div>
+          <div id="pinyin-guide">
+            <div class="source-heading">
+              <span data-i18n="practice.source">看中文，打拼音</span>
+              <span id="typing-progress"></span>
+              <button type="button" class="btn ghost mini" id="btn-pinyin-hint" aria-controls="source-line" aria-pressed="true" data-i18n="practice.hideHint">隐藏拼音提示</button>
+            </div>
+            <p id="round-progress" class="round-progress hidden"></p>
+            <div class="source-line" id="source-line"></div>
+            <div id="round-complete" class="round-complete hidden" role="status">
+              <strong data-i18n="difficulty.roundComplete">抓住了！休息一下，再继续下一关。</strong>
+              <button type="button" class="btn primary" id="btn-next-round" data-i18n="difficulty.next">继续下一关</button>
+            </div>
+          </div>
           <div class="type-line" id="type-line"></div>
           <p class="type-hint" id="type-hint" data-i18n="play.ready">按下第一个正确的键开始追逐 · Esc 放弃</p>
         </div>

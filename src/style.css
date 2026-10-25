@@ -15,7 +15,7 @@
 
 * { box-sizing: border-box; }
 html, body, #app { height: 100%; margin: 0; }
-button, textarea { font: inherit; }
+button, textarea, select { font: inherit; }
 button { cursor: pointer; }
 
 .hidden { display: none !important; }
@@ -139,7 +139,7 @@ h1, h2 { margin: 0; }
 #screen-title {
   display: grid;
   place-items: center;
-  background: #1a1208 url("/assets/map.jpg") center / cover no-repeat;
+  background: #1a1208 url("/assets/map-clear.png") center / cover no-repeat;
 }
 #screen-title::before {
   content: "";
@@ -180,7 +180,7 @@ h1, h2 { margin: 0; }
   place-items: center;
   background:
     linear-gradient(180deg, rgba(8, 10, 16, 0.88), rgba(8, 10, 16, 0.92)),
-    url("/assets/map.jpg") center / cover;
+    url("/assets/map-clear.png") center / cover;
   padding: 12px 18px;
 }
 .setup-panel {
@@ -261,6 +261,23 @@ textarea {
   color: var(--paper);
   padding: 8px 10px;
 }
+
+#practice-mode {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+  color: var(--paper);
+  background: #211e19;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.practice-rules, .practice-error, .practice-preview { font-size: 12px; line-height: 1.5; }
+.practice-rules { margin: 6px 0; color: #c7bda9; }
+.practice-error { margin: 6px 0; color: #ffb5a6; }
+.practice-error:empty { display: none; }
+.practice-preview summary { cursor: pointer; color: var(--gold); }
+.practice-preview p { overflow-wrap: anywhere; max-height: 70px; overflow-y: auto; margin: 6px 0 0; }
+textarea[aria-invalid="true"] { border-color: #ffb5a6; }
 
 @media (min-width: 701px) {
   #screen-setup { min-height: 100dvh; }
@@ -346,17 +363,58 @@ textarea {
   letter-spacing: 0.02em;
   user-select: none;
 }
-.type-line .done { color: #7dff9a; }
-.type-line .todo { color: #8a8174; }
-.type-line .cur {
+.type-line .done, .practice-syllable .done { color: #7dff9a; }
+.type-line .todo, .practice-syllable .todo { color: #8a8174; }
+.type-line .cur, .practice-syllable .cur {
   color: #fff;
   background: var(--navy);
   border-radius: 4px;
   padding: 0 3px;
   box-shadow: 0 0 0 2px rgba(242, 193, 78, 0.7);
 }
-.type-line .cur.blink { animation: caret 1s steps(1) infinite; }
+.type-line .cur.blink, .practice-syllable .cur.blink { animation: caret 1s steps(1) infinite; }
 .type-line .sp { opacity: 0.45; }
+.source-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #c7bda9; }
+.source-heading .btn { margin-left: auto; }
+.source-line {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px 12px;
+  max-height: clamp(88px, 30vh, 200px);
+  overflow-y: auto;
+  padding: 6px 3px;
+  font-size: clamp(22px, 3vw, 30px);
+  color: #bdb5a8;
+}
+.practice-unit {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 1.2em;
+  padding: 3px 4px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.practice-unit.active { background: rgba(242, 193, 78, 0.08); }
+.practice-source { line-height: 1.35; white-space: pre; }
+.practice-source.done { color: #7dff9a; }
+.practice-source.current { color: #fff; background: var(--navy); border-radius: 3px; outline: 2px solid var(--gold); }
+.practice-syllable {
+  min-height: 1.6em;
+  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: clamp(16px, 2vw, 22px);
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.pinyin-key { display: inline-block; min-width: 1ch; }
+.practice-syllable .cur { padding: 0; }
+/* Keep the same wrapping and scroll position when the user hides the hints. */
+.pinyin-hidden .pinyin-key:not(.done) { visibility: hidden; }
 .type-hint { margin: 8px 0 0; font-size: 13px; opacity: 0.65; }
 
 @keyframes caret {
@@ -371,7 +429,7 @@ textarea {
   padding: 16px;
   background:
     linear-gradient(180deg, rgba(8,10,16,0.76), rgba(8,10,16,0.88)),
-    url("/assets/map.jpg") center / cover no-repeat;
+    url("/assets/map-clear.png") center / cover no-repeat;
 }
 #screen-result[data-outcome="finished"] {
   --result-fx: url("/assets/result-escaped-fx.webp");
@@ -624,3 +682,12 @@ textarea {
   #screen-result:not(.hidden) .result-badge { animation: none; }
   #screen-result:not(.hidden) .new-record-icon { animation: none; }
 }
+
+/* The current Chinese character stands out without revealing a keyboard answer. */
+.practice-unit.future { opacity: 0.48; }
+.practice-unit.active .practice-source { font-weight: 800; box-shadow: 0 0 0 3px rgba(242,193,78,.18); }
+.round-progress { margin: 5px 0; color: var(--gold); font-size: 14px; }
+.round-complete { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; padding: 12px; background: #244538; border-radius: 10px; }
+#difficulty { width: 100%; padding: 10px; margin: 6px 0; }
+#screen-play.beginner-mode .play-hud .stat:first-child,
+#screen-play.beginner-mode .play-hud .stat:last-of-type { display: none; }

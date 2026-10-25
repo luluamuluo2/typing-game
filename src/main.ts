@@ -1,9 +1,11 @@
 import "./style.css"
 import { preloadImages } from "./assets.ts"
 import { gameAudio } from "./audio.ts"
-import { ARTICLES, normalizeArticle } from "./articles.ts"
+import { ARTICLES } from "./articles.ts"
 import { ChaseGame, GAME_IMAGE_URLS, VEHICLE_OPTIONS, type Role, type Vehicle } from "./game.ts"
 import { applyDocumentLocale, t } from "./i18n.ts"
+import { isCompositionKey, preparePassage, type PracticeMode } from "./practice.ts"
+import { createPinyinGuide, type PinyinGuide } from "./practice-view.ts"
 import {
   copyPoster,
   downloadPoster,
@@ -13,6 +15,8 @@ import {
   type MatchResult,
   type Rank,
 } from "./share.ts"
+
+import { DIFFICULTY_KEY, parseDifficulty, type Difficulty } from "./difficulty.ts"
 
 type Screen = "title" | "setup" | "play" | "result"
 
@@ -59,7 +63,17 @@ const loadingScreen = $("screen-loading")
 let role: Role = "police"
 let playerVehicle: Vehicle = "bike"
 let aiVehicle: Vehicle = "bike"
-let articleId = ARTICLES[1].id
+let mode: PracticeMode = "pinyin"
+let articleId = ARTICLES[0].id
+let difficulty: Difficulty = "beginner"
+try { difficulty = parseDifficulty(localStorage.getItem(DIFFICULTY_KEY)) } catch { /* Storage is optional. */ }
+let showPinyin = false
+let composing = false
+let pinyinGuide: PinyinGuide | null = null
+const modeDrafts: Record<PracticeMode, { articleId: string; custom: string }> = {
+  pinyin: { articleId: ARTICLES[0].id, custom: "" },
+  english: { articleId: "matches", custom: "" },
+}
 let game: ChaseGame | null = null
 let lastMatchResult: MatchResult | null = null
 let lastRank: Rank | null = null
@@ -70,7 +84,9 @@ let lastSetup: {
   aiVehicle: Vehicle
   articleId: string
   custom: string
-} = { role, playerVehicle, aiVehicle, articleId, custom: "" }
+  mode: PracticeMode
+  difficulty: Difficulty
+} = { role, playerVehicle, aiVehicle, articleId, custom: "", mode, difficulty }
 
 const customText = () => $<HTMLTextAreaElement>("custom-text")
 
@@ -128,7 +144,7 @@ function vehicleButtons(root: HTMLElement, selected: Vehicle, onPick: (v: Vehicl
 function renderArticles() {
   const box = $("article-list")
   box.innerHTML = ""
-  for (const a of ARTICLES) {
+  for (const a of ARTICLES.filter((article) => article.mode === mode)) {
     const btn = document.createElement("button")
     btn.type = "button"
     btn.className = `article${a.id === articleId ? " on" : ""}`
@@ -137,19 +153,80 @@ function renderArticles() {
       articleId = a.id
       customText().value = ""
       renderArticles()
+      renderPracticePreview()
     })
     box.append(btn)
   }
 }
 
-function currentText(): string {
-  const custom = normalizeArticle(customText().value)
-  if (custom.length >= 8) return custom
-  return ARTICLES.find((a) => a.id === articleId)?.text ?? ARTICLES[0].text
+function currentPassage() {
+  const source = articleId === "custom"
+    ? customText().value
+    : ARTICLES.find((article) => article.id === articleId && article.mode === mode)?.text ?? ""
+  return preparePassage(source, mode)
+}
+
+function renderDifficulty() {
+  const available = mode === "pinyin" && role === "police"
+  const select = $<HTMLSelectElement>("difficulty")
+  select.value = difficulty
+  select.disabled = !available
+  $("difficulty-description").textContent = available
+    ? `${t(`difficulty.${difficulty}Desc`)} ${t("difficulty.hintSetting")}` : t("difficulty.unavailable")
+  $("setup-hint").textContent = available ? t(`difficulty.${difficulty}Desc`) : t("setup.hint")
+}
+
+function renderPracticePreview() {
+  renderDifficulty()
+  const result = currentPassage()
+  const error = $("practice-error")
+  error.textContent = result.ok ? "" : `${t(`practice.error.${result.error}`)}${result.characters ? ` ${result.characters}` : ""}`
+  customText().setAttribute("aria-invalid", String(!result.ok && articleId === "custom"))
+  $("practice-preview").textContent = result.ok
+    ? result.passage.units.map((unit) => unit.target).filter(Boolean).join(" ")
+    : ""
+  $("practice-preview-wrap").classList.toggle("hidden", mode !== "pinyin" || !result.ok)
+  $("practice-rules").textContent = t(mode === "pinyin" ? "practice.pinyinRules" : "practice.englishRules")
+  customText().placeholder = t(mode === "pinyin" ? "setup.customPlaceholder" : "setup.englishPlaceholder")
+}
+
+function renderSource(g: ChaseGame) {
+  const passage = g.setup.passage
+  pinyinGuide = createPinyinGuide($("source-line"), passage)
+  $("pinyin-guide").classList.toggle("hidden", passage.mode !== "pinyin")
+  updateHintVisibility(g)
+}
+
+function updateHintVisibility(g: ChaseGame) {
+  const button = $("btn-pinyin-hint")
+  button.textContent = t(showPinyin ? "practice.hideHint" : "practice.showHint")
+  button.setAttribute("aria-pressed", String(showPinyin))
+  pinyinGuide?.setHintsVisible(showPinyin)
+  // Pinyin lives only in the aligned guide. The original strip is English-only.
+  $("type-line").classList.toggle("hidden", g.setup.passage.mode === "pinyin")
+}
+
+function renderSourceProgress(g: ChaseGame) {
+  if (g.setup.passage.mode !== "pinyin") return
+  $("round-progress").classList.toggle("hidden", !g.beginner)
+  $("round-progress").textContent = `${t("difficulty.round")} ${g.roundNumber} / ${g.rounds.length}`
+  $("round-complete").classList.toggle("hidden", !g.waitingForNextRound)
+  // Keep all typed content for review, but only show the current short task ahead.
+  for (const [index, element] of [...$("source-line").children].entries()) {
+    const unit = g.setup.passage.units[index]
+    element.classList.toggle("hidden", g.beginner && unit.start >= g.roundEnd && unit.target.length > 0)
+  }
+  pinyinGuide?.update(g.typedIndex, Boolean(g.over) || g.waitingForNextRound)
+  $("typing-progress").textContent = `${g.typedIndex} / ${g.text.length} ${t("practice.keys")}`
 }
 
 function renderTypeLine(g: ChaseGame) {
+  $("type-bar").style.width = `${(g.typedIndex / Math.max(1, g.text.length)) * 100}%`
   const line = $("type-line")
+  if (g.setup.passage.mode === "pinyin") {
+    line.replaceChildren()
+    return
+  }
   const text = g.text
   const i = g.typedIndex
   const before = text.slice(Math.max(0, i - 18), i)
@@ -161,8 +238,6 @@ function renderTypeLine(g: ChaseGame) {
       .replace(/</g, "&lt;")
       .replace(/ /g, '<span class="sp">·</span>')
   line.innerHTML = `<span class="done">${show(before)}</span><span class="cur${g.over ? "" : " blink"}">${current === " " ? "·" : show(current)}</span><span class="todo">${show(after)}</span>`
-  const bar = $("type-bar")
-  bar.style.width = `${(i / Math.max(1, text.length)) * 100}%`
 }
 
 function hudStats(g: ChaseGame) {
@@ -175,28 +250,27 @@ function hudStats(g: ChaseGame) {
 function hud(g: ChaseGame) {
   hudStats(g)
   renderTypeLine(g)
+  renderSourceProgress(g)
 }
 
 async function startMatch() {
-  game?.stop()
-  gameAudio.startMatch()
-  const text = currentText()
-  lastSetup = {
-    role,
-    playerVehicle,
-    aiVehicle,
-    articleId,
-    custom: customText().value,
+  const result = currentPassage()
+  renderPracticePreview()
+  if (!result.ok) {
+    customText().focus()
+    return
   }
+  leavePlay()
+  lastSetup = { role, playerVehicle, aiVehicle, articleId, custom: customText().value, mode, difficulty }
   show("play")
   const canvas = $<HTMLCanvasElement>("map-canvas")
-  const g = new ChaseGame(canvas, {
-    playerRole: role,
-    playerVehicle,
-    aiVehicle,
-    text,
-  })
+  const g = new ChaseGame(canvas, { playerRole: role, playerVehicle, aiVehicle, passage: result.passage, difficulty })
   game = g
+  screens.play.classList.toggle("beginner-mode", g.beginner)
+  renderSource(g)
+  renderTypeLine(g)
+  renderSourceProgress(g)
+  $("type-hint").textContent = t("loading.status")
   g.onChange = () => hud(g)
   g.onTick = () => hudStats(g)
   g.onEnd = (winner, reason) => {
@@ -204,26 +278,41 @@ async function startMatch() {
     hud(g)
     openResult(g, winner, reason)
   }
-  await g.boot()
-  g.startLoop()
-  hud(g)
-  g.resize()
-  $("type-hint").textContent =
-    role === "police" ? t("play.policeHint") : t("play.thiefHint")
-  window.addEventListener("resize", onResize)
+  try {
+    await g.boot()
+    // Escape, Quit, or another match can invalidate an in-flight boot.
+    if (game !== g) return
+    gameAudio.startMatch()
+    g.startLoop()
+    hud(g)
+    g.resize()
+    screens.play.focus({ preventScroll: true })
+    $("type-hint").textContent = t(g.beginner ? "difficulty.beginnerHint" : "play.ready")
+    window.addEventListener("resize", onResize)
+  } catch (error) {
+    if (game !== g) return
+    console.error(error)
+    leavePlay()
+    show("setup")
+    $("practice-error").textContent = t("loading.failed")
+  }
 }
 
 function onResize() {
   game?.resize()
+  if (game) renderSourceProgress(game)
 }
 
 function passageRecordKey(g: ChaseGame) {
   let hash = 2166136261
-  for (let i = 0; i < g.text.length; i += 1) {
-    hash ^= g.text.charCodeAt(i)
+  const passage = g.setup.passage
+  // Keep existing English records and isolate Chinese passages that share pinyin.
+  const identity = passage.mode === "pinyin" ? `${passage.source}\0${passage.target}` : g.text
+  for (let i = 0; i < identity.length; i += 1) {
+    hash ^= identity.charCodeAt(i)
     hash = Math.imul(hash, 16777619)
   }
-  return `${g.setup.playerRole}:${(hash >>> 0).toString(36)}`
+  return `${g.difficulty === "challenge" ? "" : `${g.difficulty}:`}${passage.mode === "pinyin" ? "pinyin:" : ""}${g.setup.playerRole}:${(hash >>> 0).toString(36)}`
 }
 
 function readPersonalBests(): Record<string, PersonalBest> {
@@ -330,6 +419,7 @@ function openResult(g: ChaseGame, winner: Role, reason: "caught" | "finished") {
     $("result-title").textContent = youWin ? t("result.escapedWin") : t("result.escapedLoss")
     $("result-desc").textContent = t("result.escapedDescription")
   }
+  if (g.beginner) $("result-desc").textContent = t("difficulty.allDone")
   renderResultStats(g, youWin)
   lastMatchResult = {
     won: youWin,
@@ -384,6 +474,7 @@ function leavePlay() {
   game?.stop()
   gameAudio.stopMatch()
   game = null
+  composing = false
   window.removeEventListener("resize", onResize)
 }
 
@@ -406,6 +497,8 @@ $("btn-again").addEventListener("click", () => {
   playerVehicle = lastSetup.playerVehicle
   aiVehicle = lastSetup.aiVehicle
   articleId = lastSetup.articleId
+  mode = lastSetup.mode
+  difficulty = lastSetup.difficulty
   customText().value = lastSetup.custom
   void startMatch()
 })
@@ -441,29 +534,74 @@ $("role-picks").addEventListener("click", (e) => {
   const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-role]")
   if (!btn) return
   role = btn.dataset.role as Role
+  renderDifficulty()
   for (const el of $("role-picks").querySelectorAll(".pick")) {
     el.classList.toggle("on", el === btn)
   }
 })
 
 customText().addEventListener("input", () => {
-  if (normalizeArticle(customText().value).length >= 8) {
-    articleId = "custom"
-    for (const el of $("article-list").querySelectorAll(".article")) el.classList.remove("on")
+  articleId = "custom"
+  for (const el of $("article-list").querySelectorAll(".article")) el.classList.remove("on")
+  renderPracticePreview()
+})
+
+$("practice-mode").addEventListener("change", () => {
+  modeDrafts[mode] = { articleId, custom: customText().value }
+  mode = $<HTMLSelectElement>("practice-mode").value as PracticeMode
+  articleId = modeDrafts[mode].articleId
+  customText().value = modeDrafts[mode].custom
+  renderArticles()
+  renderPracticePreview()
+})
+
+$("difficulty").addEventListener("change", () => {
+  difficulty = parseDifficulty($<HTMLSelectElement>("difficulty").value)
+  try { localStorage.setItem(DIFFICULTY_KEY, difficulty) } catch { /* Storage is optional. */ }
+  renderDifficulty()
+})
+
+$("btn-next-round").addEventListener("click", () => {
+  game?.continueRound()
+  screens.play.focus({ preventScroll: true })
+})
+
+$("btn-pinyin-hint").addEventListener("click", () => {
+  showPinyin = !showPinyin
+  if (game) {
+    updateHintVisibility(game)
+    game.resize()
   }
 })
 
+window.addEventListener("compositionstart", () => { composing = true })
+window.addEventListener("compositionend", () => { composing = false })
+
 window.addEventListener("keydown", (e) => {
   if (screens.play.classList.contains("hidden") || !game) return
+  if (composing || isCompositionKey(e)) {
+    $("type-hint").textContent = t("title.inputHint")
+    return
+  }
   if (e.key === "Escape") {
     leavePlay()
     show("setup")
     return
   }
+  if ((e.key === " " || e.key === "Enter") && e.target instanceof HTMLElement && e.target.closest("button")) return
   const previousIndex = game.typedIndex
   const handled = game.handleKey(e)
   if (handled && game.typedIndex > previousIndex) gameAudio.playKey()
-  hud(game)
+  if (handled) {
+    if (game.difficulty !== "challenge") {
+      $("type-hint").textContent = t(game.typedIndex === previousIndex ? "difficulty.retry"
+        : game.beginner ? "difficulty.beginnerHint" : "difficulty.practiceDesc")
+      return
+    }
+    $("type-hint").textContent = game.started
+      ? t(role === "police" ? "play.policeHint" : "play.thiefHint")
+      : t("play.ready")
+  }
 })
 
 vehicleButtons($("player-vehicle"), playerVehicle, (v) => {
@@ -473,4 +611,5 @@ vehicleButtons($("ai-vehicle"), aiVehicle, (v) => {
   aiVehicle = v
 })
 renderArticles()
+renderPracticePreview()
 void prepareApp()

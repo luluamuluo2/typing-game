@@ -3,19 +3,43 @@ import type { MessageKey } from "./i18n.ts"
 export type Article = {
   id: string
   title: string
+  mode: "pinyin" | "english"
   text: string
   noteKey: MessageKey
 }
 
 export const ARTICLES: Article[] = [
   {
+    id: "hello-pinyin",
+    mode: "pinyin",
+    title: "你好，世界",
+    noteKey: "article.note.short",
+    text: "你好，世界！我喜欢学习中文，也喜欢练习打字。",
+  },
+  {
+    id: "morning-pinyin",
+    mode: "pinyin",
+    title: "美好的早晨",
+    noteKey: "article.note.medium",
+    text: "早晨，太阳慢慢升起来。小鸟在树上唱歌，我们背着书包去学校。今天又是美好的一天，让我们一起认真学习，快乐成长。",
+  },
+  {
+    id: "travel-pinyin",
+    mode: "pinyin",
+    title: "快乐的旅行",
+    noteKey: "article.note.medium",
+    text: "周末，我和朋友去旅行。路边的绿树随风摇动，远处的山峰连成一片。我们走过小桥，听见流水的声音，也看见了许多美丽的风景。",
+  },
+  {
     id: "christmas",
+    mode: "english",
     title: "Christmas",
     noteKey: "article.note.short",
     text: "Christmas is coming. I wish you a merry Christmas and a happy New Year.",
   },
   {
     id: "matches",
+    mode: "english",
     title: "The little match girl",
     noteKey: "article.note.medium",
     text:
@@ -23,6 +47,7 @@ export const ARTICLES: Article[] = [
   },
   {
     id: "wind",
+    mode: "english",
     title: "The wind and the sun",
     noteKey: "article.note.medium",
     text:
@@ -30,6 +55,7 @@ export const ARTICLES: Article[] = [
   },
   {
     id: "edison",
+    mode: "english",
     title: "Edison's story",
     noteKey: "article.note.long",
     text:
@@ -37,6 +63,7 @@ export const ARTICLES: Article[] = [
   },
   {
     id: "city",
+    mode: "english",
     title: "A walk in the city",
     noteKey: "article.note.punctuation",
     text:
