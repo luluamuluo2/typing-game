@@ -1,6 +1,6 @@
 import { pathAt, wrap01, forwardDist, shortestDist, debugSamples } from "./path.ts"
 import { t, type MessageKey } from "./i18n.ts"
-import { loadImage } from "./assets.ts"
+import { loadImage, MAP_IMAGE_URL } from "./assets.ts"
 import { isCompositionKey, type PracticePassage } from "./practice.ts"
 
 export type Role = "police" | "thief"
@@ -80,7 +80,7 @@ const ANIMATION_ATLAS: Record<Role, Record<Vehicle, string>> = {
 }
 
 export const GAME_IMAGE_URLS = [
-  "/assets/map.jpg",
+  MAP_IMAGE_URL,
   ...Object.values(ANIMATION_ATLAS).flatMap((vehicles) => Object.values(vehicles)),
 ]
 
@@ -90,8 +90,9 @@ const FACING_DEAD_ZONE = 0.12
 const ANIMATION_FPS: Record<Vehicle, number> = { walk: 9, bike: 10, car: 8 }
 const IDLE_FRAME: Record<Vehicle, number> = { walk: 1, bike: 0, car: 0 }
 
-// Sprite height in map pixels. Keeping this tied to the map scale makes actors
-// feel like part of the street instead of UI elements laid over the canvas.
+// Preserve the original scene proportions independently of asset resolution.
+const LOGICAL_MAP_WIDTH = 1280
+// Sprite height in logical map pixels, not source-image pixels.
 const DRAW_MAP_H: Record<Vehicle, number> = { walk: 64, bike: 78, car: 68 }
 const ANCHOR_Y: Record<Vehicle, number> = { walk: 0.9, bike: 0.94, car: 0.9 }
 const SHADOW_WIDTH: Record<Vehicle, number> = { walk: 0.34, bike: 0.62, car: 0.72 }
@@ -174,7 +175,7 @@ export class ChaseGame {
   async boot() {
     const loaded = await Promise.all(GAME_IMAGE_URLS.map(async (u) => [u, await loadImage(u)] as const))
     for (const [u, img] of loaded) this.images.set(u, img)
-    this.map = this.images.get("/assets/map.jpg")!
+    this.map = this.images.get(MAP_IMAGE_URL)!
     this.resetActors()
     this.resize()
     this.draw(performance.now())
@@ -419,12 +420,12 @@ export class ChaseGame {
   private refreshMapRect(vw: number, vh: number) {
     const mw = this.map.naturalWidth
     const mh = this.map.naturalHeight
-    const scale = Math.min(vw / mw, vh / mh)
-    const w = mw * scale
-    const h = mh * scale
+    const imageScale = Math.min(vw / mw, vh / mh)
+    const w = mw * imageScale
+    const h = mh * imageScale
     const x = (vw - w) / 2
     const y = (vh - h) / 2
-    this.mapRect = { x, y, w, h, scale }
+    this.mapRect = { x, y, w, h, scale: w / LOGICAL_MAP_WIDTH }
     const parent = this.canvas.parentElement
     if (parent) {
       parent.style.setProperty("--map-left", `${x}px`)

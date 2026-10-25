@@ -1,5 +1,5 @@
 import { t, type MessageKey } from "./i18n.ts"
-import { loadImage } from "./assets.ts"
+import { loadImage, MAP_IMAGE_URL } from "./assets.ts"
 
 export type MatchResult = {
   won: boolean
@@ -75,7 +75,7 @@ export async function renderPoster(canvas: HTMLCanvasElement, result: MatchResul
 
   const scenePath = result.outcome === "caught" ? "/assets/result-caught-fx.webp" : "/assets/result-escaped-fx.webp"
   const [background, scene, icon] = await Promise.all([
-    loadImage("/assets/map.jpg"),
+    loadImage(MAP_IMAGE_URL),
     loadImage(scenePath),
     loadImage(rank.icon),
   ])

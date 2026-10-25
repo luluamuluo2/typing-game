@@ -42,6 +42,65 @@ function key(key: string, overrides = {}) {
   return { key, preventDefault() {}, ...overrides } as KeyboardEvent
 }
 
+type MapState = {
+  map: { naturalWidth: number; naturalHeight: number }
+  mapRect: { x: number; y: number; w: number; h: number; scale: number }
+  ctx: { drawImage(...args: unknown[]): void }
+  refreshMapRect(width: number, height: number): void
+  draw(ts: number): void
+}
+
+test("scene scale and placement do not depend on background pixel density", async (t) => {
+  const game = await createGame("你好")
+  t.after(() => game.stop())
+  const state = game as unknown as MapState
+  for (const [width, height] of [[1280, 720], [1000, 600], [390, 640], [1920, 540]]) {
+    state.map = { naturalWidth: 1280, naturalHeight: 720 }
+    state.refreshMapRect(width, height)
+    const baseline = { ...state.mapRect }
+    for (const density of [2, 4]) {
+      state.map = { naturalWidth: 1280 * density, naturalHeight: 720 * density }
+      state.refreshMapRect(width, height)
+      assert.deepEqual(state.mapRect, baseline)
+    }
+  }
+})
+
+test("the generated background fits its actual aspect ratio while keeping logical actor scale", async (t) => {
+  const game = await createGame("你好")
+  t.after(() => game.stop())
+  const state = game as unknown as MapState
+  state.map = { naturalWidth: 1672, naturalHeight: 941 }
+  for (const [width, height] of [[1000, 600], [390, 640], [1920, 540]]) {
+    state.refreshMapRect(width, height)
+    const rect = state.mapRect
+    assert.ok(Math.abs(rect.w / rect.h - 1672 / 941) < 1e-12)
+    assert.ok(rect.w <= width && rect.h <= height)
+    assert.equal(rect.x, (width - rect.w) / 2)
+    assert.equal(rect.y, (height - rect.h) / 2)
+    assert.equal(rect.scale, rect.w / 1280)
+  }
+})
+
+test("new background preserves rendered character and vehicle sizes", async (t) => {
+  for (const aiVehicle of ["walk", "bike", "car"] as const) {
+    const game = await createGame("你好", "pinyin", true, { aiVehicle })
+    t.after(() => game.stop())
+    const state = game as unknown as MapState
+    const spriteSizes: unknown[][] = []
+    state.ctx.drawImage = (...args) => {
+      if (args.length === 9) spriteSizes.push(args.slice(-2))
+    }
+    state.map = { naturalWidth: 1280, naturalHeight: 720 }
+    state.draw(0)
+    const baseline = spriteSizes.splice(0)
+    state.map = { naturalWidth: 1672, naturalHeight: 941 }
+    state.draw(0)
+    assert.equal(baseline.length, 2)
+    assert.deepEqual(spriteSizes, baseline)
+  }
+})
+
 test("one-key passages finish with peak speed recorded before a frame", async () => {
   for (const mode of ["pinyin", "english"] as const) {
     const game = await createGame(mode === "pinyin" ? "啊" : "a", mode)
