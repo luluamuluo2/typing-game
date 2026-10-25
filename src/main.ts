@@ -4,7 +4,8 @@ import { gameAudio } from "./audio.ts"
 import { ARTICLES } from "./articles.ts"
 import { ChaseGame, GAME_IMAGE_URLS, VEHICLE_OPTIONS, type Role, type Vehicle } from "./game.ts"
 import { applyDocumentLocale, t } from "./i18n.ts"
-import { activeUnitIndex, isCompositionKey, preparePassage, type PracticeMode } from "./practice.ts"
+import { isCompositionKey, preparePassage, type PracticeMode } from "./practice.ts"
+import { createPinyinGuide, type PinyinGuide } from "./practice-view.ts"
 import {
   copyPoster,
   downloadPoster,
@@ -64,7 +65,7 @@ let mode: PracticeMode = "pinyin"
 let articleId = ARTICLES[0].id
 let showPinyin = true
 let composing = false
-let displayedUnit = -2
+let pinyinGuide: PinyinGuide | null = null
 const modeDrafts: Record<PracticeMode, { articleId: string; custom: string }> = {
   pinyin: { articleId: ARTICLES[0].id, custom: "" },
   english: { articleId: "matches", custom: "" },
@@ -165,7 +166,9 @@ function renderPracticePreview() {
   const error = $("practice-error")
   error.textContent = result.ok ? "" : `${t(`practice.error.${result.error}`)}${result.characters ? ` ${result.characters}` : ""}`
   customText().setAttribute("aria-invalid", String(!result.ok && articleId === "custom"))
-  $("practice-preview").textContent = result.ok ? result.passage.target : ""
+  $("practice-preview").textContent = result.ok
+    ? result.passage.units.map((unit) => unit.target).filter(Boolean).join(" ")
+    : ""
   $("practice-preview-wrap").classList.toggle("hidden", mode !== "pinyin" || !result.ok)
   $("practice-rules").textContent = t(mode === "pinyin" ? "practice.pinyinRules" : "practice.englishRules")
   customText().placeholder = t(mode === "pinyin" ? "setup.customPlaceholder" : "setup.englishPlaceholder")
@@ -173,14 +176,7 @@ function renderPracticePreview() {
 
 function renderSource(g: ChaseGame) {
   const passage = g.setup.passage
-  const sourceLine = $("source-line")
-  sourceLine.replaceChildren()
-  for (const unit of passage.units) {
-    const span = document.createElement("span")
-    span.textContent = unit.source
-    sourceLine.append(span)
-  }
-  displayedUnit = -2
+  pinyinGuide = createPinyinGuide($("source-line"), passage)
   $("pinyin-guide").classList.toggle("hidden", passage.mode !== "pinyin")
   updateHintVisibility(g)
 }
@@ -189,31 +185,24 @@ function updateHintVisibility(g: ChaseGame) {
   const button = $("btn-pinyin-hint")
   button.textContent = t(showPinyin ? "practice.hideHint" : "practice.showHint")
   button.setAttribute("aria-pressed", String(showPinyin))
-  $("type-line").classList.toggle("hidden", g.setup.passage.mode === "pinyin" && !showPinyin)
+  pinyinGuide?.setHintsVisible(showPinyin)
+  // Pinyin lives only in the aligned guide. The original strip is English-only.
+  $("type-line").classList.toggle("hidden", g.setup.passage.mode === "pinyin")
 }
 
 function renderSourceProgress(g: ChaseGame) {
   if (g.setup.passage.mode !== "pinyin") return
-  const passage = g.setup.passage
-  const active = activeUnitIndex(passage, g.typedIndex)
-  const sourceLine = $("source-line")
-  for (const [index, span] of Array.from(sourceLine.children).entries()) {
-    const unit = passage.units[index]
-    span.classList.toggle("done", unit.end <= g.typedIndex)
-    span.classList.toggle("current", index === active)
-    if (index === active) span.setAttribute("aria-current", "true")
-    else span.removeAttribute("aria-current")
-  }
-  if (active !== displayedUnit) {
-    const current = sourceLine.children[active] as HTMLElement | undefined
-    if (current) sourceLine.scrollTop = current.offsetTop - sourceLine.clientHeight / 2 + current.offsetHeight / 2
-    displayedUnit = active
-  }
+  pinyinGuide?.update(g.typedIndex, Boolean(g.over))
   $("typing-progress").textContent = `${g.typedIndex} / ${g.text.length} ${t("practice.keys")}`
 }
 
 function renderTypeLine(g: ChaseGame) {
+  $("type-bar").style.width = `${(g.typedIndex / Math.max(1, g.text.length)) * 100}%`
   const line = $("type-line")
+  if (g.setup.passage.mode === "pinyin") {
+    line.replaceChildren()
+    return
+  }
   const text = g.text
   const i = g.typedIndex
   const before = text.slice(Math.max(0, i - 18), i)
@@ -225,8 +214,6 @@ function renderTypeLine(g: ChaseGame) {
       .replace(/</g, "&lt;")
       .replace(/ /g, '<span class="sp">·</span>')
   line.innerHTML = `<span class="done">${show(before)}</span><span class="cur${g.over ? "" : " blink"}">${current === " " ? "·" : show(current)}</span><span class="todo">${show(after)}</span>`
-  const bar = $("type-bar")
-  bar.style.width = `${(i / Math.max(1, text.length)) * 100}%`
 }
 
 function hudStats(g: ChaseGame) {
@@ -288,6 +275,7 @@ async function startMatch() {
 
 function onResize() {
   game?.resize()
+  if (game) renderSourceProgress(game)
 }
 
 function passageRecordKey(g: ChaseGame) {

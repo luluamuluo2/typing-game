@@ -78,6 +78,18 @@ test("English still requires exact case, punctuation and spaces", async () => {
   game.stop()
 })
 
+test("visual pinyin gaps do not add spaces to the typing target", async () => {
+  const game = await createGame("我爱学习")
+  for (const character of "wo") game.handleKey(key(character))
+  game.handleKey(key(" "))
+  assert.equal(game.typedIndex, 2)
+  assert.equal(game.missCount, 1)
+  for (const character of "aixuexi") game.handleKey(key(character))
+  assert.equal(game.typedIndex, 9)
+  assert.equal(game.over?.reason, "finished")
+  game.stop()
+})
+
 test("IME, held keys and shortcuts do not count as typing", async () => {
   const game = await createGame("你")
   for (const overrides of [{ isComposing: true }, { keyCode: 229 }, { repeat: true }, { ctrlKey: true }, { metaKey: true }, { altKey: true }]) {

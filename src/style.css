@@ -363,32 +363,58 @@ textarea[aria-invalid="true"] { border-color: #ffb5a6; }
   letter-spacing: 0.02em;
   user-select: none;
 }
-.type-line .done { color: #7dff9a; }
-.type-line .todo { color: #8a8174; }
-.type-line .cur {
+.type-line .done, .practice-syllable .done { color: #7dff9a; }
+.type-line .todo, .practice-syllable .todo { color: #8a8174; }
+.type-line .cur, .practice-syllable .cur {
   color: #fff;
   background: var(--navy);
   border-radius: 4px;
   padding: 0 3px;
   box-shadow: 0 0 0 2px rgba(242, 193, 78, 0.7);
 }
-.type-line .cur.blink { animation: caret 1s steps(1) infinite; }
+.type-line .cur.blink, .practice-syllable .cur.blink { animation: caret 1s steps(1) infinite; }
 .type-line .sp { opacity: 0.45; }
 .source-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; color: #c7bda9; }
 .source-heading .btn { margin-left: auto; }
 .source-line {
   position: relative;
-  max-height: min(130px, 20vh);
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 8px 12px;
+  max-height: clamp(88px, 30vh, 200px);
   overflow-y: auto;
-  overflow-wrap: anywhere;
   padding: 6px 3px;
   font-size: clamp(22px, 3vw, 30px);
-  line-height: 1.8;
-  letter-spacing: 0.08em;
   color: #bdb5a8;
 }
-.source-line .done { color: #7dff9a; }
-.source-line .current { color: #fff; background: var(--navy); border-radius: 3px; outline: 2px solid var(--gold); }
+.practice-unit {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 1.2em;
+  padding: 3px 4px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.practice-unit.active { background: rgba(242, 193, 78, 0.08); }
+.practice-source { line-height: 1.35; white-space: pre; }
+.practice-source.done { color: #7dff9a; }
+.practice-source.current { color: #fff; background: var(--navy); border-radius: 3px; outline: 2px solid var(--gold); }
+.practice-syllable {
+  min-height: 1.6em;
+  font-family: "JetBrains Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: clamp(16px, 2vw, 22px);
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.pinyin-key { display: inline-block; min-width: 1ch; }
+.practice-syllable .cur { padding: 0; }
+/* Keep the same wrapping and scroll position when the user hides the hints. */
+.pinyin-hidden .practice-syllable { visibility: hidden; }
 .type-hint { margin: 8px 0 0; font-size: 13px; opacity: 0.65; }
 
 @keyframes caret {
