@@ -1,4 +1,5 @@
 import "./style.css"
+import { initLan } from "./lan.ts"
 import { preloadImages } from "./assets.ts"
 import { gameAudio } from "./audio.ts"
 import { ARTICLES } from "./articles.ts"
@@ -68,6 +69,7 @@ let articleId = ARTICLES[0].id
 let difficulty: Difficulty = "beginner"
 try { difficulty = parseDifficulty(localStorage.getItem(DIFFICULTY_KEY)) } catch { /* Storage is optional. */ }
 let showPinyin = false
+let lanActive = false
 let composing = false
 let pinyinGuide: PinyinGuide | null = null
 const modeDrafts: Record<PracticeMode, { articleId: string; custom: string }> = {
@@ -578,7 +580,7 @@ window.addEventListener("compositionstart", () => { composing = true })
 window.addEventListener("compositionend", () => { composing = false })
 
 window.addEventListener("keydown", (e) => {
-  if (screens.play.classList.contains("hidden") || !game) return
+  if (lanActive || screens.play.classList.contains("hidden") || !game) return
   if (composing || isCompositionKey(e)) {
     $("type-hint").textContent = t("title.inputHint")
     return
@@ -612,4 +614,12 @@ vehicleButtons($("ai-vehicle"), aiVehicle, (v) => {
 })
 renderArticles()
 renderPracticePreview()
+initLan(() => {
+  lanActive = true
+  leavePlay()
+  for (const screen of Object.values(screens)) screen.classList.add("hidden")
+}, () => {
+  lanActive = false
+  show("title")
+})
 void prepareApp()

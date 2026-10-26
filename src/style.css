@@ -150,6 +150,8 @@ h1, h2 { margin: 0; }
 .title-card {
   position: relative;
   text-align: center;
+  width: min(760px, calc(100% - 32px));
+  margin: 20px 0;
   padding: 36px 40px 28px;
   border-radius: 18px;
   background: var(--panel);
@@ -691,3 +693,20 @@ textarea[aria-invalid="true"] { border-color: #ffb5a6; }
 #difficulty { width: 100%; padding: 10px; margin: 6px 0; }
 #screen-play.beginner-mode .play-hud .stat:first-child,
 #screen-play.beginner-mode .play-hud .stat:last-of-type { display: none; }
+
+/* Equal-weight entry points: solo and LAN are both first-class modes. */
+.mode-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.mode-card { display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 0; padding: 22px 16px; border: 2px solid #f2c14e; border-radius: 16px; background: linear-gradient(145deg, #fff4cf, #f4cc73); color: #251b0e; box-shadow: 0 5px 0 #93651d; transition: transform .15s; }
+.mode-card:hover { transform: translateY(-2px); }
+.mode-card:active { transform: translateY(2px); }
+.mode-card:focus-visible { outline: 3px solid white; outline-offset: 5px; }
+.mode-card .mode-icon { font-size: 30px; }
+.mode-card strong { font-size: clamp(22px, 3vw, 28px); }
+.mode-card > span:not(.mode-icon) { font-size: 14px; line-height: 1.5; }
+.mode-card small { margin-top: auto; padding-top: 5px; font-size: 14px; font-weight: 800; }
+.lan-home-note { max-width: 620px; margin: 20px auto 0; font-size: 13px; line-height: 1.7; color: #f0dfba; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  .mode-choices { grid-template-columns: 1fr; gap: 12px; }
+  .mode-card { padding: 16px 12px; gap: 6px; }
+  .mode-card .mode-icon { font-size: 24px; }
+}
