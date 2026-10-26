@@ -9,7 +9,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "test": "node --experimental-strip-types --test tests/*.test.ts"
+    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "lan": "node --experimental-strip-types server/lan.mjs",
+    "lan:start": "npm run build && npm run lan"
   },
   "devDependencies": {
     "typescript": "~6.0.2",
@@ -18,6 +20,10 @@
   },
   "dependencies": {
     "pinyin-pro": "3.29.5",
-    "shareon": "^2.8.1"
+    "shareon": "^2.8.1",
+    "ws": "^8.18.3"
+  },
+  "engines": {
+    "node": ">=22.18.0"
   }
 }

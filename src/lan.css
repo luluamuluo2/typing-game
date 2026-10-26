@@ -1,0 +1,33 @@
+#screen-lan { padding: 24px; background: radial-gradient(ellipse at top, #2b3027, #100e0a 75%); }
+.lan-panel { max-width: 1100px; margin: auto; }
+.lan-header, .lan-room-head, .lan-actions, .lan-options { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.lan-header h2 { font-size: 30px; }
+.lan-error { color: #ffb4a3; white-space: pre-wrap; }
+.lan-error:empty { display: none; }
+.lan-addresses { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+.lan-addresses a { color: #ffe38a; overflow-wrap: anywhere; }
+.lan-rules { border: 1px solid var(--line); border-radius: 12px; padding: 15px; line-height: 1.7; margin: 18px 0; }
+.lan-rules summary { cursor: pointer; }
+.lan-setup { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+.lan-box, .lan-typing { padding: 22px; background: #211d17; border: 1px solid var(--line); border-radius: 16px; }
+.lan-box h3 { margin-top: 0; }
+.lan-box label { display: block; line-height: 1.6; }
+.lan-box textarea, .lan-box input:not([type=checkbox]), .lan-box select { font: inherit; padding: 10px; border: 1px solid #786d50; border-radius: 6px; background: #13110d; color: var(--paper); }
+.lan-box textarea, .lan-box input:not([type=checkbox]) { width: 100%; margin: 8px 0 16px; }
+.lan-box textarea { resize: vertical; }
+.lan-box button { margin-top: 18px; }
+#btn-lan { display: block; margin: 18px auto 0; }
+#screen-lan button:disabled { opacity: .45; cursor: not-allowed; }
+.lan-actions { justify-content: flex-start; margin: 20px 0; }
+.lan-actions b { margin-left: auto; font-variant-numeric: tabular-nums; }
+.lan-players { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.lan-player { background: #27251e; border: 1px solid var(--line); padding: 14px; border-radius: 10px; }
+.lan-map { position: relative; width: min(100%, 700px); margin: 0 auto 20px; overflow: hidden; border-radius: 16px; }
+.lan-map-image { display: block; width: 100%; }
+.lan-runner { position: absolute; transform: translate(-50%, -85%); width: 7%; min-width: 27px; text-align: center; pointer-events: none; }
+.lan-runner img { display: block; width: 100%; filter: drop-shadow(0 3px 3px #0008); }
+.lan-runner span { color: white; background: #163e73; font-size: 12px; border-radius: 3px; padding: 2px 4px; white-space: nowrap; }
+.lan-thief span { background: #235b29; }
+.lan-typing .source-line { position: relative; max-height: 200px; margin-top: 18px; }
+.lan-typing progress { display: block; margin-top: 16px; width: 100%; accent-color: var(--gold); height: 12px; }
+@media(max-width: 700px) { #screen-lan { padding: 16px; } .lan-setup, .lan-players { grid-template-columns: 1fr; } .lan-box, .lan-typing { padding: 16px; } .lan-header h2 { font-size: 24px; } }
